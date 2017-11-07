@@ -1,0 +1,57 @@
+
+Modules:
+---------------------------------------------------------------------------------------------------------------------
+import:
+	Input:
+		1.ImageBase
+		2.pMutateImportInfo
+		
+	Procedure:
+	
+	Output:
+		1.保存已变异的输入表的内存空间及其大小	
+
+	Todo:
+		1.添加错误检测
+		2.支持指定变异输入表存放地址
+---------------------------------------------------------------------------------------------------------------------
+shell:	1.添加新区块
+		2.把shell写入分配的内存块中（先写入，后填写数据）
+		3.修复SHELL的自建输入表
+		4.填写shell相关数据字段
+		5.修复PE头,AddressOfEntryPoint, BaseOfCode,  DataDirectory[IMPORT,IAT]
+
+shell.asm: 
+		第一段shell Induction:	包含自建ImportTable,相关数据
+		1.获取自身区块VA，以便寻址
+		2.获取映像基址
+		3.VirtualAlloc分配内存空间，用来存放解压缩后的第二段shell
+		*4.解压缩第二段shell到分配的内存空间
+		5.复制相关数据到第二段shell:三个基本函数地址，ap_depack_asm地址, VirtualAlloc, PresentImageBase
+		6.跳转到第二段shell Luanch
+		第二段shell Luanch: 包含相关数据
+		1.获取第二段shell VA
+		2.如果是DLL则直接跳转到OEP
+		3.GetModuleHandle获取模块基址
+		4.获取VirtualFree函数地址
+		*5.解压缩各区块数据
+		*6.恢复原输入表
+		*7.修正重定位数据
+		*8.anti debug
+		9.跳转到OEP
+----------------------------------------------------------------------------------------------------------------------
+packing:	
+	Input:	
+		1.ImageBase	
+			修复PE头相关数据，和压缩各区块数据
+			默认把最后一个区块视为shell
+		2.Bases and Sizes of MutateData
+			MutateImport, MutateRelocation, MutateTLS
+
+	Procedure:
+		1.压缩变异数据(Import, Relocation, TLS)，并存放相关的数据和配置到第二段区块数据区域中
+		2.压缩shell第二段(Luanch),修复相关PE设置
+		3.压缩各区块数据，并修复相关PE设置
+
+	Output:
+		1.已压缩好的整个文件映像
