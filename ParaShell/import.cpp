@@ -5,7 +5,9 @@
 
 /*
 description:	ctor,读取原始输入表，初始化变异输入表数据
-params:			[in]void* pImageBase
+params:			[in]void* pImageBase	// 文件数据内存指针
+Todo:
+*	1.输入检测，抛出异常
 */
 ImpTab::ImpTab(void* pImageBase) :
 	m_vMutatedImpTab()
@@ -15,7 +17,7 @@ ImpTab::ImpTab(void* pImageBase) :
 
 /*
 description:	把变异输入表数据以外壳结构方式转存到内存中
-params:			[in]void* pMem
+params:			[in+out]void* pMem	// 要存放的内存地址
 returns:		bool
 */
 bool ImpTab::dumpInShellForm(void* pMem)
@@ -46,7 +48,7 @@ bool ImpTab::dumpInShellForm(void* pMem)
 		/* FuncName */
 		int i = 0;
 		for (std::vector<MutatedImpTab_DLLNode_APINode>::iterator iterT = iterD->vThunks.begin(); 
-			iterT < iterD->vThunks.end(); i++, iterT++)
+			iterT != iterD->vThunks.end(); i++, iterT++)
 		{
 			memset(&pData->FuncName[i], 0, sizeof(pData->FuncName[i]));
 			if (iterT->isString())
@@ -72,7 +74,7 @@ bool ImpTab::dumpInShellForm(void* pMem)
 
 /*
 description:	重新读入去原始输入表数据，初始化变异输入表数据
-params:			[in]void* pImageBase
+params:			[in]void* pImageBase	// 文件数据内存指针
 returns:		bool
 */
 bool ImpTab::reset(void* pImageBase)
@@ -101,7 +103,7 @@ DWORD ImpTab::getMutatedImpTabSizeInShell()
 	dwMutateImpSize += (m_vMutatedImpTab.size() + 1) * (2 * sizeof(DWORD) + 32 * sizeof(BYTE));
 	
 	// APINode总大小
-	for (std::vector<MutatedImpTab_DLLNode>::iterator iter = m_vMutatedImpTab.begin(); iter < m_vMutatedImpTab.end(); iter++)
+	for (std::vector<MutatedImpTab_DLLNode>::iterator iter = m_vMutatedImpTab.begin(); iter != m_vMutatedImpTab.end(); iter++)
 	{
 		dwMutateImpSize += 32 * sizeof(char) * iter->vThunks.size();
 	}
@@ -111,7 +113,7 @@ DWORD ImpTab::getMutatedImpTabSizeInShell()
 
 /*
 description:	读取输入表数据到容器(变异格式)
-params:			[in]void* pImageBase	// 文件内存基质指针
+params:			[in]void* pImageBase	// 文件数据内存指针
 returns:		bool
 */
 bool ImpTab::marshallMutatedImpTab(void* pImageBase)

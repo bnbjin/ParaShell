@@ -73,20 +73,26 @@ int DeployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell,
 	char* pShellData = (char*)(*_ppShellSection) + shellrawsize + ulShellDataGap;
 	
 	/*  把变异输入表写入shell  */
-	std::vector<DataToShellNode>::iterator iter;
-	if (ISMUTATEIMPORT)
+	DWORD ShellDataRVA = pLastSecHeader->VirtualAddress + shellrawsize + ulShellDataGap;
+	std::vector<DataToShellNode>::iterator iter = _rvDataToShell.begin();
+	while (_rvDataToShell.end() != iter)
 	{
-		iter = _rvDataToShell.begin();
-		while (ShellDataType::MImp != iter->DataType)
-		{
-			iter++;
-		}
 		if (ShellDataType::MImp == iter->DataType)
 		{
 			memcpy(pShellData, iter->pData, iter->nData);
+			pLuanchData->MutateImpTableAddr = ShellDataRVA;
 		}
-		pLuanchData->MutateImpTableAddr = pLastSecHeader->VirtualAddress + shellrawsize + ulShellDataGap;
+
+		if (ShellDataType::MReloc == iter->DataType)
+		{
+			memcpy(pShellData, iter->pData, iter->nData);
+			pLuanchData = ShellDataRVA;
+		}
+
+		ShellDataRVA += iter->nData + ulShellDataGap;
+		iter++;
 	}
+	
 
 	return	ERR_SUCCESS;
 }

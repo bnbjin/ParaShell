@@ -52,9 +52,12 @@ int ProtTheFile(TCHAR *szFilePath)
 
 
 		/*  处理重定位数据  */
+		RelocTab reloctab(pImageBase);
+		MutatedRelocTabInfo MRelocTabInfo(reloctab.getMutatedRelocTabSizeInShell());
 		if (ISMUTATERELOC)
 		{	 
-			MutateRelocation();
+			if (!reloctab.dumpInShellForm(MRelocTabInfo.pMutatedRelocTab))
+				throw std::exception("reloctab.dumpInShellForm failed");
 		}
 
 
@@ -100,6 +103,13 @@ int ProtTheFile(TCHAR *szFilePath)
 			tmpDTSN.nData = MImpTabInfo.nMutatedImpTab;
 			vDTS.push_back(tmpDTSN);
 		}
+		if (ISMUTATERELOC)
+		{
+			tmpDTSN.DataType = ShellDataType::MReloc;
+			tmpDTSN.pData = MRelocTabInfo.pMutatedRelocTab;
+			tmpDTSN.nData = MRelocTabInfo.nMutatedRelocTab;
+			vDTS.push_back(tmpDTSN);
+		}
 		DeployShell(pImageBase, vDTS, &pShellSection);
 
 
@@ -128,7 +138,6 @@ int ProtTheFile(TCHAR *szFilePath)
 		/*  加密完成,清理  */
 		if (0 != pImageBase) delete []pImageBase;
 		if (0 != pShellSection) delete []pShellSection;
-		//if (ISPACKRES)	delete []pMapOfPackRes;
 		if (0 != pExtraData)	delete []pExtraData;
 
 		CloseHandle(hFile);

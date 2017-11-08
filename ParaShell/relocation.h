@@ -2,29 +2,97 @@
 #define __RELOCATION_H__
 
 #include <windows.h>
+#include <vector>
 
-//定义重定位表结构
-typedef struct _IMAGE_BASE_RELOCATION2 {
+#pragma pack(push)
+#pragma pack(1)
+#pragma warning(push)
+#pragma warning(disable:4200)
+
+/* 外壳中变异重定位表结构 */
+struct Shell_MutatedRelocTab_NODE
+{
+	BYTE   type;
+	DWORD  FirstTypeRVA;
+	BYTE   Offset[];
+};
+
+#pragma pack(4)
+
+/* 重定义原始重定位表结构 */
+struct IMAGE_BASE_RELOCATION2
+{
 	DWORD   VirtualAddress;
 	DWORD   SizeOfBlock;
-	WORD    TypeOffset[1];
-} IMAGE_BASE_RELOCATION2;
-
+	WORD    TypeOffset[];
+};
 // typedef IMAGE_BASE_RELOCATION2 UNALIGNED * PIMAGE_BASE_RELOCATION2;
 typedef IMAGE_BASE_RELOCATION2 *PIMAGE_BASE_RELOCATION2;
 
-//新构造的重定位表结构
-/*	typedef struct _NEWIMAGE_BASE_RELOCATION {
-BYTE   type;
-DWORD  FirstTypeRVA;
-BYTE   nNewItemOffset[1];
-}
-*/
+#pragma warning(pop)
+#pragma pack(pop)
 
+struct MutatedRelocTabInfo
+{
+	void*	pMutatedRelocTab;
+	DWORD	nMutatedRelocTab;
 
-/*
-	Description:	重定位表变异处理函数
-*/
-bool MutateRelocation();
+	/*
+	TODO:
+	1. 异常检测
+	*/
+	MutatedRelocTabInfo(DWORD sz) :
+		pMutatedRelocTab(0), nMutatedRelocTab(sz)
+	{
+		pMutatedRelocTab = new char[nMutatedRelocTab];
+		memset(pMutatedRelocTab, 0, nMutatedRelocTab);
+	}
+
+	~MutatedRelocTabInfo()
+	{
+		delete[] pMutatedRelocTab;
+	}
+};
+//typedef MutatedRelocTabInfo *PMutatedRelocTabInfo;
+
+class RelocTab
+{
+public:
+	RelocTab(void* pImageBase);
+	
+	bool reset(void* pImageBase);
+
+	bool dumpInShellForm(void* pMem);
+
+	DWORD getMutatedRelocTabSizeInShell();
+
+	bool clrOriginalRelocTab(void* pImageBase);
+
+private:
+	
+	struct IMAGE_BASE_RELOCATION_MUTATED
+	{
+		BYTE   type;
+		DWORD  FirstTypeRVA;
+		std::vector<BYTE>   Offset;
+
+		IMAGE_BASE_RELOCATION_MUTATED() :
+			type(IMAGE_REL_BASED_ABSOLUTE),
+			FirstTypeRVA(0),
+			Offset()
+		{}
+
+		void clear()
+		{
+			type = IMAGE_REL_BASED_ABSOLUTE;
+			FirstTypeRVA = 0;
+			Offset.clear();
+		}
+	};
+
+	bool marshallMutatedRelocTab(void* pImageBase);
+
+	std::vector<IMAGE_BASE_RELOCATION_MUTATED> m_vMutatedRelocTab;
+};
 
 #endif // __RELOCATION_H__
