@@ -78,7 +78,7 @@ struct DataToShellNode
 /*
 	Description:	安置shell区块,_pShellSection需要调用者delete
 */
-int ImployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection);
+int DeployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection);
 
 
 #endif // __SEHLL_H__

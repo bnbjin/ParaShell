@@ -1,3 +1,4 @@
+#include <exception>
 #include <windows.h>
 #include "pediy.h"
 #include "pe_utilities.h"
@@ -58,10 +59,12 @@ int ProtTheFile(TCHAR *szFilePath)
 
 
 		/*  输入表变异  */
-		MutateImportInfo MImpInfo = {0};
+		ImpTab imptab(pImageBase);
+		MutatedImpTabInfo MImpTabInfo(imptab.getMutatedImpTabSizeInShell());
 		if (ISMUTATEIMPORT)
 		{
-			MutateImport(pImageBase, &MImpInfo);
+			if (!imptab.dumpInShellForm(MImpTabInfo.pMutatedImpTab))
+				throw std::exception("imptab.dumpInShellForm failed.");
 		}
 
 
@@ -93,11 +96,11 @@ int ProtTheFile(TCHAR *szFilePath)
 		if (ISMUTATEIMPORT)
 		{
 			tmpDTSN.DataType = ShellDataType::MImp;
-			tmpDTSN.pData = MImpInfo.pMutateImport;
-			tmpDTSN.nData = MImpInfo.nMutateImport;
+			tmpDTSN.pData = MImpTabInfo.pMutatedImpTab;
+			tmpDTSN.nData = MImpTabInfo.nMutatedImpTab;
 			vDTS.push_back(tmpDTSN);
 		}
-		ImployShell(pImageBase, vDTS, &pShellSection);
+		DeployShell(pImageBase, vDTS, &pShellSection);
 
 
 		/*  融合内存块 */
@@ -125,7 +128,6 @@ int ProtTheFile(TCHAR *szFilePath)
 		/*  加密完成,清理  */
 		if (0 != pImageBase) delete []pImageBase;
 		if (0 != pShellSection) delete []pShellSection;
-		if (0 != MImpInfo.pMutateImport)	delete[]MImpInfo.pMutateImport;
 		//if (ISPACKRES)	delete []pMapOfPackRes;
 		if (0 != pExtraData)	delete []pExtraData;
 

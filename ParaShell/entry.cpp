@@ -70,13 +70,13 @@ INT_PTR CALLBACK SubCTLDlgProc(
 		EnableWindow(GetDlgItem(hDlg, IDC_PROT_BUTTON), FALSE);
 
 #ifdef __PARADOX_DEBUG__
-		DeleteFile(TEXT("C:\\Users\\Administrator\\Desktop\\test.exe"));
-		MoveFile(TEXT("C:\\Users\\Administrator\\Desktop\\test.exe.bak"), TEXT("C:\\Users\\Administrator\\Desktop\\test.exe"));
-		lstrcpy(szFilePath, TEXT("C:\\Users\\Administrator\\Desktop\\test.exe"));
+		DeleteFile(TEXT("C:\\Users\\win10_rmtdbg\\Desktop\\rmtdbg\\test.exe"));
+		MoveFile(TEXT("C:\\Users\\win10_rmtdbg\\Desktop\\rmtdbg\\test.exe.bak"), TEXT("C:\\Users\\win10_rmtdbg\\Desktop\\rmtdbg\\test.exe"));
+		lstrcpy(szFilePath, TEXT("C:\\Users\\win10_rmtdbg\\Desktop\\rmtdbg\\test.exe"));
 		hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ProtTheFile, (LPVOID)szFilePath, NORMAL_PRIORITY_CLASS, &ProtFileThreadID);
 		WaitForSingleObject(hThread, INFINITE);
 		CloseHandle(hThread);
-		WinExec("C:\\Users\\Administrator\\Desktop\\test.exe", SW_NORMAL);
+		WinExec("C:\\Users\\win10_rmtdbg\\Desktop\\rmtdbg\\test.exe", SW_NORMAL);
 		SendMessage(GetParent(GetParent(hDlg)), WM_CLOSE, 0, 0);
 #endif 
 

@@ -11,7 +11,7 @@ const unsigned long ulShellDataGap = 0x10;
 /*
 	Description:	°²ÖÃshellÇø¿é
 */
-int ImployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection)
+int DeployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection)
 {
 	unsigned long shellrawsize = (unsigned long)(&Label_Shell_End) - (unsigned long)(&Label_Shell_Start);
 	unsigned long shelldatasize = 0;

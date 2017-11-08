@@ -4,87 +4,121 @@
 
 
 /*
-description:	输入表变异处理
-params:			void* _pImageBase
-returns:		ERR_SUCCESS
+description:	ctor,读取原始输入表，初始化变异输入表数据
+params:			[in]void* pImageBase
 */
-int MutateImport(void *_pImageBase, PMutateImportInfo _pMutateImportInfo)
+ImpTab::ImpTab(void* pImageBase) :
+	m_vMutatedImpTab()
 {
-	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
-	PIMAGE_IMPORT_DESCRIPTOR pIID = (PIMAGE_IMPORT_DESCRIPTOR)RVAToPtr(_pImageBase, pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
-	PIMAGE_THUNK_DATA pThunk;
-	std::vector<MutatedImpTab_DLLNode> vMuateImport;
-	MutatedImpTab_DLLNode tmpImportNode;
-	MutatedImpTab_DLLNode_APINode tmpImpThunkNode;
+	marshallMutatedImpTab(pImageBase);
+}
 
-	/*  把原输入表关键信息读入  */
-	while (0 != pIID->FirstThunk)
+/*
+description:	把变异输入表数据以外壳结构方式转存到内存中
+params:			[in]void* pMem
+returns:		bool
+*/
+bool ImpTab::dumpInShellForm(void* pMem)
+{
+	if (!pMem)
 	{
-		memset(&tmpImportNode, 0, sizeof(MutatedImpTab_DLLNode));
-
-		strcpy_s(tmpImportNode.DLLName, (char*)RVAToPtr(_pImageBase, pIID->Name));
-		tmpImportNode.FirstThunk = pIID->FirstThunk;
-
-		pThunk = (PIMAGE_THUNK_DATA)RVAToPtr(_pImageBase, pIID->FirstThunk);
-		while (pThunk->u1.AddressOfData)
-		{
-			memset(&tmpImpThunkNode, 0, sizeof(MutatedImpTab_DLLNode_APINode));
-			
-			if (!IMAGE_SNAP_BY_ORDINAL(pThunk->u1.Ordinal))
-			{	// STRING
-				strcpy_s(tmpImpThunkNode.FuncName, (char*)RVAToPtr(_pImageBase, pThunk->u1.AddressOfData + 2));
-			}
-			else
-			{	// ORDINAL
-				tmpImpThunkNode.Ordinal = pThunk->u1.Ordinal;
-			}
-			
-			tmpImportNode.vThunks.push_back(tmpImpThunkNode);
-
-			pThunk++;
-		}
-
-		vMuateImport.push_back(tmpImportNode);
-
-		pIID++;
+		return false;
 	}
 
 	/*  为变异输入表分配内存空间，并把输入表以变异后格式写入分配内存空间中  */
-	_pMutateImportInfo->nMutateImport = CalcMutateImpSize(vMuateImport);
-	_pMutateImportInfo->pMutateImport = new char[_pMutateImportInfo->nMutateImport];
-	memset(_pMutateImportInfo->pMutateImport, 0, _pMutateImportInfo->nMutateImport);
-	char* pData = (char*)(_pMutateImportInfo->pMutateImport);
-	for (std::vector<MutatedImpTab_DLLNode>::iterator iterD = vMuateImport.begin(); iterD < vMuateImport.end(); iterD++)
+	Shell_MutatedImpTab_DLLNode* pData = (Shell_MutatedImpTab_DLLNode*)pMem;
+	for (std::vector<MutatedImpTab_DLLNode>::iterator iterD = m_vMutatedImpTab.begin(); iterD < m_vMutatedImpTab.end(); iterD++)
 	{
-		*(DWORD*)pData = iterD->FirstThunk;
-		pData += sizeof(DWORD);
-		strcpy_s(pData, 32, iterD->DLLName);
-		pData += 32 * sizeof(char);
-		*(DWORD*)pData = iterD->vThunks.size();
-		pData += sizeof(DWORD);
-		for (std::vector<MutatedImpTab_DLLNode_APINode>::iterator iterT = iterD->vThunks.begin(); iterT < iterD->vThunks.end(); iterT++)
+		/* FirstThunk */
+		pData->FirstThunk = iterD->FirstThunk;
+		
+		/* DLLName */
+		memset(pData->DLLName, 0, sizeof(pData->DLLName));
+		if (iterD->DLLName.size() >= sizeof(pData->DLLName))
 		{
-			memcpy(pData, iterT->FuncName, sizeof(*iterT));
-			pData += sizeof(*iterT);
+			return false;
 		}
+		iterD->DLLName.copy((char*)(pData->DLLName), iterD->DLLName.size());
+		
+		/* nFunc */
+		pData->nFunc = iterD->vThunks.size();
+
+		/* FuncName */
+		int i = 0;
+		for (std::vector<MutatedImpTab_DLLNode_APINode>::iterator iterT = iterD->vThunks.begin(); 
+			iterT < iterD->vThunks.end(); i++, iterT++)
+		{
+			memset(&pData->FuncName[i], 0, sizeof(pData->FuncName[i]));
+			if (iterT->isString())
+			{	// string
+				if (iterT->APIName.size() >= sizeof(pData->FuncName[i]))
+				{
+					return false;
+				}
+				iterT->APIName.copy((char*)(pData->FuncName[i].ProcName), iterT->APIName.size());
+			}
+			else
+			{	// ordinal
+				pData->FuncName[i].Ordinal = iterT->Ordinal;
+			}
+		}
+		pData = (Shell_MutatedImpTab_DLLNode*)(
+			(DWORD)&pData->FuncName[i-1] 
+			+ sizeof(pData->FuncName[i-1]));
 	}
 
+	return true;
+}
 
-	return ERR_SUCCESS;
+/*
+description:	重新读入去原始输入表数据，初始化变异输入表数据
+params:			[in]void* pImageBase
+returns:		bool
+*/
+bool ImpTab::reset(void* pImageBase)
+{
+	if (!pImageBase)
+	{
+		return false;
+	}
+
+	m_vMutatedImpTab.clear();
+	marshallMutatedImpTab(pImageBase);
+
+	return true;
+}
+
+/*
+description:	获取变异输入表在外壳中大小
+returns:		大小
+*/
+DWORD ImpTab::getMutatedImpTabSizeInShell()
+{
+	DWORD dwMutateImpSize = 0;
+
+	// DLLNode总大小
+	// 预留一个单位大小给空节点
+	dwMutateImpSize += (m_vMutatedImpTab.size() + 1) * (2 * sizeof(DWORD) + 32 * sizeof(BYTE));
+	
+	// APINode总大小
+	for (std::vector<MutatedImpTab_DLLNode>::iterator iter = m_vMutatedImpTab.begin(); iter < m_vMutatedImpTab.end(); iter++)
+	{
+		dwMutateImpSize += 32 * sizeof(char) * iter->vThunks.size();
+	}
+
+	return dwMutateImpSize;
 }
 
 /*
 description:	读取输入表数据到容器(变异格式)
 params:			[in]void* pImageBase	// 文件内存基质指针
-*				[out]std::vector<MutatedImpTab_DLLNode>& rvMutatedImpTab
-returns:		ERR_SUCCESS
-*				ERR_INVALIDPARAMS
+returns:		bool
 */
-int marshallMutatedImpTab(void* pImageBase, std::vector<MutatedImpTab_DLLNode>& rvMutatedImpTab)
+bool ImpTab::marshallMutatedImpTab(void* pImageBase)
 {
-	if (!pImageBase)
+	if (!pImageBase || m_vMutatedImpTab.size())
 	{
-		return ERR_INVALIDPARAMS;
+		return false;
 	}
 	
 	const PIMAGE_NT_HEADERS pNTHeader = getNTHeader(pImageBase);
@@ -97,19 +131,19 @@ int marshallMutatedImpTab(void* pImageBase, std::vector<MutatedImpTab_DLLNode>& 
 	/*  把原输入表关键信息读入  */
 	while (0 != pIID->FirstThunk)
 	{
-		memset(&tmpImportNode, 0, sizeof(MutatedImpTab_DLLNode));
+		tmpImportNode.clear();
 
-		strcpy_s(tmpImportNode.DLLName, (char*)RVAToPtr(pImageBase, pIID->Name));
+		tmpImportNode.DLLName.assign((char*)RVAToPtr(pImageBase, pIID->Name));
 		tmpImportNode.FirstThunk = pIID->FirstThunk;
 
 		pThunk = (PIMAGE_THUNK_DATA)RVAToPtr(pImageBase, pIID->FirstThunk);
 		while (pThunk->u1.AddressOfData)
 		{
-			memset(&tmpImpThunkNode, 0, sizeof(MutatedImpTab_DLLNode_APINode));
+			tmpImpThunkNode.clear();
 			
 			if (!IMAGE_SNAP_BY_ORDINAL(pThunk->u1.Ordinal))
 			{	// STRING
-				strcpy_s(tmpImpThunkNode.FuncName, (char*)RVAToPtr(_pImageBase, pThunk->u1.AddressOfData + 2));
+				tmpImpThunkNode.APIName.assign((char*)RVAToPtr(pImageBase, pThunk->u1.AddressOfData + 2));
 			}
 			else
 			{	// ORDINAL
@@ -121,26 +155,10 @@ int marshallMutatedImpTab(void* pImageBase, std::vector<MutatedImpTab_DLLNode>& 
 			pThunk++;
 		}
 
-		vMuateImport.push_back(tmpImportNode);
+		m_vMutatedImpTab.push_back(tmpImportNode);
 
 		pIID++;
 	}
-}
 
-/*
-	Description:	计算变异输入表存放需要的大小
-*/
-unsigned long CalcMutateImpSize(std::vector<MutatedImpTab_DLLNode> &_rvMuateImport)
-{
-	unsigned long ulMutateImpSize = 0;
-	ulMutateImpSize += \
-		2 * sizeof(DWORD) * _rvMuateImport.size() \
-		+ 32 * sizeof(char) * _rvMuateImport.size();
-	
-	for (std::vector<MutatedImpTab_DLLNode>::iterator iter = _rvMuateImport.begin(); iter < _rvMuateImport.end(); iter++)
-	{
-		ulMutateImpSize += 32 * sizeof(char) * iter->vThunks.size();
-	}
-
-	return ulMutateImpSize;
+	return true;
 }

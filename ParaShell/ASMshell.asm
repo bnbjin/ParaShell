@@ -433,7 +433,7 @@ Label_Luanch_Start	LABEL	DWORD
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.MutateImpTableAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
-		call	Proc_UnmutateImport
+		call	Proc_UnMutateImpTab
 		add		esp, 14h
 	.ENDIF
 	; *  修正重定位数据  *
@@ -468,27 +468,27 @@ comment /
 				_GMHAddr				DWORD
 				_LLAAddr				DWORD
 /
-Proc_UnmutateImport	PROC C PRIVATE \
+Proc_UnMutateImpTab	PROC C PRIVATE \
 	USES ebx ecx edx esi edi \
 	, _RuntimeImageBase:DWORD, _MutateImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
 	
 	
 	mov		edx, _RuntimeImageBase
 	mov		esi, _MutateImportRVA
-	mov		edi, (MUTATE_IMPORT PTR [edx + esi]).FirstThunk
+	mov		edi, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).FirstThunk
 	
 	.WHILE		edi != 0
 		
 		; eax = GetModuleHandleA(MutateImport.DLLName)
 		; if (eax == 0)	LoadLibraryA(MutateImport.DLLName)
 		push 	edx
-		lea 	eax, (MUTATE_IMPORT PTR [edx + esi]).DLLName
+		lea 	eax, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).DLLName
 		push 	eax
 		call 	_GMHAddr	
 		pop 	edx
 		.IF 	eax == 0
 		push 	edx
-		lea 	eax, (MUTATE_IMPORT PTR [edx + esi]).DLLName
+		lea 	eax, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).DLLName
 		push 	eax
 		call 	_LLAAddr	
 		pop 	edx
@@ -496,8 +496,8 @@ Proc_UnmutateImport	PROC C PRIVATE \
 		
 		; 获取所有函数的地址
 		; ebx = hDLL
-		; ecx = MUTATE_IMPORT.nFunc
-		; esi = MUTATE_IMPORT.MUTATE_IMPORT_THUNK
+		; ecx = SHELL_MUTATED_IMPTAB_DLLNODE.nFunc
+		; esi = SHELL_MUTATED_IMPTAB_DLLNODE.SHELL_MUTATED_IMPTAB_DLLNODE_APINODE
 		; while(ecx != 0)
 		; {
 		; 		if (esi is ordinal)
@@ -515,7 +515,7 @@ Proc_UnmutateImport	PROC C PRIVATE \
 		;		ecx--
 		; }
 		mov 	ebx, eax
-		mov		ecx, (MUTATE_IMPORT PTR [edx + esi]).nFunc
+		mov		ecx, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).nFunc
 		add		esi, 28h
 		.WHILE  ecx != 0
 			mov 	eax, DWORD PTR [edx + esi]
@@ -546,12 +546,12 @@ Proc_UnmutateImport	PROC C PRIVATE \
 			dec 	ecx
 		.ENDW
 		
-		mov		edi, (MUTATE_IMPORT PTR [edx + esi]).FirstThunk
+		mov		edi, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).FirstThunk
 	.ENDW	
 	
 	ret 
 	
-Proc_UnmutateImport ENDP
+Proc_UnMutateImpTab ENDP
 
 
 comment /
