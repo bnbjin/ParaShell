@@ -13,7 +13,7 @@ UINT AlignSize(UINT nSize, UINT nAlign);
 /*
 	Description:	RVA->指向堆中对应位置的指针
 */
-char* RVAToPtr(const void* imagebase, const unsigned long dwRVA);
+char* RVAToPtr(const void* imagebase, const DWORD dwRVA);
 
 
 /*
@@ -67,7 +67,7 @@ unsigned int GetNTHeaderSize(void* _pImageBase);
 /*
 	Description:	在区块表最后添加新区快,new申请新区快内存，需要调用者delete
 */
-unsigned int CreateNewSection(void* _pImageBase, const unsigned long _secsize, void **_ppNewSection);
+unsigned int CreateNewSection(void* _pImageBase, const DWORD _secsize, void **_ppNewSection);
 
 
 /*

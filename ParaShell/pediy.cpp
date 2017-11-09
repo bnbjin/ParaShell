@@ -23,7 +23,7 @@ int ProtTheFile(TCHAR *szFilePath)
 	void* pImageBase = 0;
 	void* pExtraData = 0;
 	void* pShellSection = 0;
-	unsigned long ulExtraDataSize = 0;
+	DWORD ulExtraDataSize = 0;
 
 	try
 	{
@@ -110,7 +110,10 @@ int ProtTheFile(TCHAR *szFilePath)
 			tmpDTSN.nData = MRelocTabInfo.nMutatedRelocTab;
 			vDTS.push_back(tmpDTSN);
 		}
-		DeployShell(pImageBase, vDTS, &pShellSection);
+		if (ERR_SUCCESS != buildShell(pImageBase, vDTS, &pShellSection))
+		{
+			throw std::exception("buildShell failed.");
+		}
 
 
 		/*  融合内存块 */
@@ -144,10 +147,11 @@ int ProtTheFile(TCHAR *szFilePath)
 
 		ISWORKING = false;
 	}
-	catch (...)
+	catch (std::exception& e)
 	{
 		// TODO: 处理异常的堆栈平衡吗？
-		MessageBox(NULL, TEXT("处理文件流程中出现错误."), NULL, 0);
+		e.what();
+		MessageBox(NULL, TEXT("加壳流程出现错误"), NULL, 0);
 		return ERR_UNKNOWN;
 	}
 
@@ -273,7 +277,7 @@ int ReadFileToHeap(TCHAR *szFilePath, HANDLE *_hfile, void **_pimagebase)
 	IMAGE_NT_HEADERS ntheader;
 	PIMAGE_SECTION_HEADER psecheader;
 	DWORD	RWbytes;
-	unsigned long imagesize_fix;
+	DWORD imagesize_fix;
 	void* pimagebase;
 	BOOL bRetCode;
 
@@ -395,7 +399,7 @@ int FixPEHeader(void *_pimagebase)
 	PIMAGE_SECTION_HEADER psecheader = (PIMAGE_SECTION_HEADER)getSecHeader(_pimagebase);
 	PIMAGE_SECTION_HEADER psecheader_iterator;
 
-	unsigned long sectionnum = pntheader->FileHeader.NumberOfSections;
+	DWORD sectionnum = pntheader->FileHeader.NumberOfSections;
 	unsigned int index;
 
 	// 对存储在堆中的区块表数据进行修正

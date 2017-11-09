@@ -14,7 +14,7 @@ UINT AlignSize(UINT nSize, UINT nAlign)
 /* 
 	Description:	RVA->指向堆中对应位置的指针						   
 */
-char* RVAToPtr(const void* imagebase, const unsigned long dwRVA)
+char* RVAToPtr(const void* imagebase, const DWORD dwRVA)
 {
 	return ((char*)imagebase + dwRVA);
 }
@@ -172,7 +172,7 @@ unsigned int GetSectionTableSize(void* _pImageBase)
 /*
 	Description:	在区块表最后添加新区快,new申请新区快内存，需要调用者delete
 */
-unsigned int CreateNewSection(void* _pImageBase, const unsigned long _secsize, void **_ppNewSection)
+unsigned int CreateNewSection(void* _pImageBase, const DWORD _secsize, void **_ppNewSection)
 {
 	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pNewSecHeader = getLastSecHeader(_pImageBase) + 1;
@@ -201,7 +201,7 @@ unsigned int CreateNewSection(void* _pImageBase, const unsigned long _secsize, v
 
 
 	/*  分配新区块内存  */
-	unsigned long ulNewSecSize = AlignSize(_secsize, pNTHeader->OptionalHeader.SectionAlignment);
+	DWORD ulNewSecSize = AlignSize(_secsize, pNTHeader->OptionalHeader.SectionAlignment);
 	*_ppNewSection = new char[ulNewSecSize];
 	memset(*_ppNewSection, 0, ulNewSecSize);
 
@@ -224,9 +224,9 @@ void* MergeMemBlock(void* _pImageBase, void* _pShellSection)
 {
 	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pShellSecHeader = getLastSecHeader(_pImageBase);
-	unsigned long ulNewImageSize = pNTHeader->OptionalHeader.SizeOfImage;
-	unsigned long ulOriginalImageSize = ulNewImageSize - AlignSize(pShellSecHeader->Misc.VirtualSize, pNTHeader->OptionalHeader.SectionAlignment);
-	unsigned long ulShellSize = pShellSecHeader->SizeOfRawData;
+	DWORD ulNewImageSize = pNTHeader->OptionalHeader.SizeOfImage;
+	DWORD ulOriginalImageSize = ulNewImageSize - AlignSize(pShellSecHeader->Misc.VirtualSize, pNTHeader->OptionalHeader.SectionAlignment);
+	DWORD ulShellSize = pShellSecHeader->SizeOfRawData;
 
 	// 分配新映像的内存空间
 	void* pNewMemBlock = new unsigned char[ulNewImageSize];
@@ -236,7 +236,7 @@ void* MergeMemBlock(void* _pImageBase, void* _pShellSection)
 	memcpy(pNewMemBlock, _pImageBase, ulOriginalImageSize);
 
 	// 复制ShellSection
-	void* pNewShellPosition = (void*)((unsigned long)pNewMemBlock + ulOriginalImageSize);
+	void* pNewShellPosition = (void*)((DWORD)pNewMemBlock + ulOriginalImageSize);
 	memcpy(pNewShellPosition, _pShellSection, ulShellSize);
 
 	return pNewMemBlock;

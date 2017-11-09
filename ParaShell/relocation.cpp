@@ -8,8 +8,15 @@ RelocTab::RelocTab(void* pImageBase) : m_vMutatedRelocTab()
 
 bool RelocTab::reset(void* pImageBase)
 {
+	if (!pImageBase)
+	{
+		return false;
+	}
+
 	m_vMutatedRelocTab.clear();
 	marshallMutatedRelocTab(pImageBase);
+
+	return true;
 }
 
 bool RelocTab::dumpInShellForm(void* pMem)

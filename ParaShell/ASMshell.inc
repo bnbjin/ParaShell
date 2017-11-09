@@ -19,20 +19,14 @@ PUBLIC 	C 	Lable_Luanch_Data_End
 
 
 MY_IMAGE_IMPORT_DESCRIPTOR STRUCT    
-	
 	UNION Misc
 		Characteristics 	DD	?	; 0 for terminating null import descriptor
 		OriginalFirstThunk 	DD	?	; RVA to original unbound IAT (PIMAGE_THUNK_DATA)
 	ENDS
-	
 	TimeDateStamp	DD	?
-	
     ForwarderChain	DD	?
-    
 	DLLName			DD	?
-    
 	FirstThunk		DD	?            ; RVA to IAT
-	
 MY_IMAGE_IMPORT_DESCRIPTOR ENDS
 
 MY_IMAGE_IMPORT_THUNK STRUCT
@@ -50,49 +44,56 @@ MY_IMAGE_IMPORT_BY_NAME ENDS
 
 
 INDUCTION_DATA STRUCT
-	
 	nShellStep	 		DD	0	; DLL可能会多次进入shell,通过统计进入步数来判断是EXE还是DLL
-	
 	LuanchBase	 		DD	?	; 需要外壳程序写入	RVA
-	
 	LuanchAllocBase	 	DD	?
-	
 	PresentImageBase	DD	?
-	
 	nLuanchOriginalSize	DD	?
-	
 	nLuanchPackSize		DD	?	; 需要外壳程序写入
-	
 	szVirtualAlloc	 	DB	'VirtualAlloc', 0
-	
 	VirtualAllocAddr 	DD	0
-	
 	TlsTable	 		DB	18h DUP (?)	; 暂时未使用到
-
 INDUCTION_DATA ENDS
 
+; MInfo_ImpTabType
+MIITT_NOTHING	EQU	0h	; 无任何操作
+MIITT_MUTATED	EQU 1h	; 变异
+
+; MInfo_RelocTabType
+MIRTT_NOTHING	EQU 0h
+MIRTT_MUTATED	EQU 1h
+
+MUTATEDINFO_BITSEPERITEM EQU 1h
+
+; ShellDataType
+MImp		EQU 0h
+MReloc		EQU 1h
+MReserved	EQU 2h
+
+SHELLDATANODE STRUCT
+	_Type			DD ?	; ShellDataType
+	OriginalAddr	DD ?
+	MutatedAddr		DD ?
+SHELLDATANODE ENDS
 
 LUANCH_DATA STRUCT
-OEP					DD	?	; 需要外壳程序写入
-IsMutateImpTable	DD	?	; 需要外壳程序写入
-MutateImpTableAddr	DD	?	; 需要外壳程序写入
-OriginalImpTableAddr	DD	?	; 需要外壳程序写入
-IsDll				DD	?	; 需要外壳程序写入
-OriginalRelocAddr	DD	?	; 需要外壳程序写入	
-SectionPackInfo		DB	0a0h DUP (?)	; 需要外壳程序写入
-nLuanchAllocStep    DD	0
-szVirtualFree		DB	'VirtualFree', 0
-VirtualFreeADDR		DD	0
-szKer32DLLName		DB	'KERNEL32.dll', 0, 0
-hFile				DD	0
-; 已下数据需要从第一段SHELL复制到第二段SHELL
-; 三个函数次序不可改变
-GPAAddr				DD	0
-GMHAddr				DD	0
-LLAAddr				DD	0
-VirtualAllocAddr	DD	0
-aPDepackASMAddr		DD	0
-PresentImageBase	DD	0
+	OEP					DD	?	; 需要外壳程序写入
+	IsDll				DD	?	; 需要外壳程序写入
+	MInfo				DD	?	; 需要外壳程序写入				
+	Nodes				SHELLDATANODE  (TYPE DWORD / MUTATEDINFO_BITSEPERITEM) DUP (<?, ?, ?>); 需要外壳程序写入	
+	nLuanchAllocStep    DD	0
+	szVirtualFree		DB	'VirtualFree', 0
+	VirtualFreeADDR		DD	0
+	szKer32DLLName		DB	'KERNEL32.dll', 0, 0
+	hFile				DD	0
+	; 已下数据需要从第一段SHELL复制到第二段SHELL
+	; 三个函数次序不可改变
+	GPAAddr				DD	0
+	GMHAddr				DD	0
+	LLAAddr				DD	0
+	VirtualAllocAddr	DD	0
+	aPDepackASMAddr		DD	0
+	PresentImageBase	DD	0
 LUANCH_DATA ENDS
 
 

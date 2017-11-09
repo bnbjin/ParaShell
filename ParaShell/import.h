@@ -35,13 +35,13 @@ struct Shell_MutatedImpTab_DLLNode
 struct MutatedImpTabInfo
 {
 	void *pMutatedImpTab;
-	unsigned long nMutatedImpTab;
+	DWORD nMutatedImpTab;
 
 	/*
 	TODO:
 	1. “Ï≥£ºÏ≤‚
 	*/
-	MutatedImpTabInfo(unsigned long sz) :
+	MutatedImpTabInfo(DWORD sz) :
 		pMutatedImpTab(0), nMutatedImpTab(sz)
 	{
 		pMutatedImpTab = new char[nMutatedImpTab];

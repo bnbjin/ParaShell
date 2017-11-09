@@ -39,9 +39,9 @@ int PackFile(void *_pImageBase, void *_pMutateImp, void *_pMutateReloc, void *_p
 	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pLastSection = getLastSecHeader(_pImageBase);
 	void *pLuanch = RVAToPtr(_pImageBase, pLastSection->VirtualAddress) \
-		+ (unsigned long)(&Label_Luanch_Start) \
-		- (unsigned long)(&Label_Shell_Start);
-	unsigned long nLuanchSize = (unsigned long)(&Label_Luanch_End) - (unsigned long)(&Label_Luanch_Start);
+		+ (DWORD)(&Label_Luanch_Start) \
+		- (DWORD)(&Label_Shell_Start);
+	DWORD nLuanchSize = (DWORD)(&Label_Luanch_End) - (DWORD)(&Label_Luanch_Start);
 	PackInfoNode PIN;
 	memset(&PIN, 0, sizeof(PackInfoNode));
 	PIN.OriginalOffset = pLuanch;
@@ -53,8 +53,8 @@ int PackFile(void *_pImageBase, void *_pMutateImp, void *_pMutateReloc, void *_p
 	memcpy(pLuanch, PIN.PackedOffset, PIN.PackedSize);
 	PInduction_Data pInduction_Data = (PInduction_Data) \
 		(RVAToPtr(_pImageBase, pLastSection->VirtualAddress) \
-			+ (unsigned long)(&Label_Induction_Data_Start) \
-			- (unsigned long)(&Label_Shell_Start));
+			+ (DWORD)(&Label_Induction_Data_Start) \
+			- (DWORD)(&Label_Shell_Start));
 	pInduction_Data->nLuanchOriginalSize = nLuanchSize;
 	pInduction_Data->nLuanchPackSize = PIN.PackedSize;
 	delete[]PIN.PackedOffset;

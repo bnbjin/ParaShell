@@ -418,12 +418,13 @@ Label_Luanch_Start	LABEL	DWORD
 	
 	; *  解压缩各区块  *
 	; *  恢复原输入表  *
-	mov 	eax, DWORD PTR [edx + (LuanchData.IsMutateImpTable - Label_Luanch_Start)]
+	mov 	eax, DWORD PTR [edx + (LuanchData.MInfo - Label_Luanch_Start)]
+	shr		eax, (TYPE DWORD / MUTATEDINFO_BITSEPERITEM - 1 - MImp)
 	.IF eax == 0
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
-		push	DWORD PTR [edx + (LuanchData.OriginalImpTableAddr - Label_Luanch_Start)]
+		push	DWORD PTR [edx + (LuanchData.Nodes[MImp].OriginalAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 		call	Proc_InitOrigianlImport
 		add		esp, 14h
@@ -431,7 +432,7 @@ Label_Luanch_Start	LABEL	DWORD
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
-		push	DWORD PTR [edx + (LuanchData.MutateImpTableAddr - Label_Luanch_Start)]
+		push	DWORD PTR [edx + (LuanchData.Nodes[MImp].MutatedAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 		call	Proc_UnMutateImpTab
 		add		esp, 14h

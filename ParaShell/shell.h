@@ -1,5 +1,4 @@
-#ifndef __SHELL_H__
-#define __SHELL_H__
+#pragma once
 
 #include <windows.h>
 #include <vector>
@@ -40,45 +39,113 @@ struct Induction_Data
 	BYTE	TlsTable[18];
 };
 
-struct Luanch_Data
+#define MUTATEDINFO_BITSEPERITEM 1
+struct MutatedInfo
 {
-	DWORD	OEP;
-	DWORD	IsMutateImpTable;
-	DWORD	MutateImpTableAddr;		// RVA to shell
-	DWORD	OriginalImpTableAddr;
-	DWORD	IsDLL;
-	DWORD	OriginalRelocAddr;
-	BYTE	SectionPackInfo[0xa0];
+	DWORD	ImpTab : MUTATEDINFO_BITSEPERITEM, \
+			RelocTab : MUTATEDINFO_BITSEPERITEM, \
+			Reserved;
 };
-#pragma pack(pop)
 
-typedef Induction_Import* UNALIGNED PInduction_Import;
-typedef Induction_Data* UNALIGNED PInduction_Data;
-typedef Luanch_Data* UNALIGNED PLuanch_Data;
+enum MInfo_ImpTabType
+{
+	MIITT_NOTHING,	// 无任何操作
+	MIITT_MUTATED,	// 变异
+};
 
+enum MInfo_RelocTabType
+{
+	MIRTT_NOTHING,
+	MIRTT_MUTATED,
+};
 
 // 需要写入shell的数据的类型
 enum ShellDataType
 {
 	MImp,
 	MReloc,
-	MTLS,
 	MOthers
 };
+
+struct ShellDataNode
+{
+	DWORD	Type;	// ShellDataType
+	DWORD	OriginalAddr;
+	DWORD	MutatedAddr;
+};
+
+struct Luanch_Data
+{
+	DWORD	OEP;
+	DWORD	IsDLL;
+	MutatedInfo		MInfo;			
+	ShellDataNode	Nodes[sizeof(MutatedInfo)/MUTATEDINFO_BITSEPERITEM];
+	BYTE	SectionPackInfo[0xa0];
+};
+
+#pragma pack(pop)
+
+typedef Induction_Import* UNALIGNED PInduction_Import;
+typedef Induction_Data* UNALIGNED PInduction_Data;
+typedef Luanch_Data* UNALIGNED PLuanch_Data;
 
 // 需要写入shell的数据信息
 struct DataToShellNode
 {
-	void *pData;
-	unsigned long nData;
+	void* pData;
+	DWORD nData;
 	ShellDataType DataType;
 };
-
 
 /*
 	Description:	安置shell区块,_pShellSection需要调用者delete
 */
-int DeployShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection);
+int buildShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, void **_ppShellSection);
 
+/*
+description:	修正伪装输入表字段
+params:			[in]void* pImageBase
+*				[in + out]void* pSecShell
+returns:		bool
+*/
+bool fixFakedImpTabItem(void* pImageBase, void* pSecShell);
 
-#endif // __SEHLL_H__
+/*
+description:	修正外壳数据字段
+params:			[in]void* pImageBase
+*				[in + out]void* pSecShell
+returns:		bool
+*/
+bool fixShellData(void* pImageBase, void* pSecShell);
+
+/*
+description:	把输入表信息安置到被加壳程序中
+params:			[in]void* pImageBase
+*				[in]const void* pImpTabData
+*				[in]const DWORD nImpTabData
+*				[in + out]void* pSecShell
+*				[in + out]DWORD Offset
+returns:		bool
+*/
+bool buildImpTab(
+	void* pImageBase,
+	const void* pImpTabData,
+	const DWORD nImpTabData,
+	void* pSecShell,
+	DWORD Offset);
+
+/*
+description:	把重定位表信息安置到被加壳程序中
+params:			[in]void* pImageBase
+*				[in]const void* pRelocTabData
+*				[in]const DWORD nRelocTabData
+*				[in + out]void* pSecShell
+*				[in + out]DWORD Offset
+returns:		bool
+*/
+bool buildRelocTab(
+	void* pImageBase,
+	const void* pRelocTabData,
+	const DWORD nRelocTabData,
+	void* pSecShell,
+	DWORD Offset);
