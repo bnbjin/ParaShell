@@ -6,6 +6,7 @@
     <DeploymentDirectory>C:\Users\win10_rmtdbg\Desktop\rmtdbg\</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerCommand>$(DeploymentDirectory)$(TargetName).exe</RemoteDebuggerCommand>
+    <RemoteDebuggerCommandArguments>$(DeploymentDirectory)test_dll.dll</RemoteDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <RemoteDebuggerWorkingDirectory>C:\Users\win10_rmtdbg\Desktop\rmtdbg\</RemoteDebuggerWorkingDirectory>
@@ -14,6 +15,7 @@
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerCommand>$(DeploymentDirectory)$(TargetName).exe</RemoteDebuggerCommand>
     <RemoteDebuggerDeployDebugCppRuntime>true</RemoteDebuggerDeployDebugCppRuntime>
+    <RemoteDebuggerCommandArguments>$(DeploymentDirectory)test_dll.dll</RemoteDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoteDebuggerWorkingDirectory>C:\Users\win10_rmtdbg\Desktop\rmtdbg\</RemoteDebuggerWorkingDirectory>
@@ -21,6 +23,7 @@
     <DeploymentDirectory>C:\Users\win10_rmtdbg\Desktop\rmtdbg\</DeploymentDirectory>
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerCommand>$(DeploymentDirectory)$(TargetName).exe</RemoteDebuggerCommand>
+    <RemoteDebuggerCommandArguments>$(DeploymentDirectory)test_dll.dll</RemoteDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <RemoteDebuggerWorkingDirectory>C:\Users\win10_rmtdbg\Desktop\rmtdbg\</RemoteDebuggerWorkingDirectory>
@@ -29,5 +32,6 @@
     <DebuggerFlavor>WindowsRemoteDebugger</DebuggerFlavor>
     <RemoteDebuggerCommand>$(DeploymentDirectory)$(TargetName).exe</RemoteDebuggerCommand>
     <RemoteDebuggerDeployDebugCppRuntime>true</RemoteDebuggerDeployDebugCppRuntime>
+    <RemoteDebuggerCommandArguments>$(DeploymentDirectory)test_dll.dll</RemoteDebuggerCommandArguments>
   </PropertyGroup>
 </Project>

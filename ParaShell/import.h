@@ -17,7 +17,7 @@ struct Shell_MutatedImpTab_DLLNode_APINode
 	union
 	{
 		DWORD Ordinal;
-		BYTE ProcName[32];
+		BYTE ProcName[128];
 	};
 };
 

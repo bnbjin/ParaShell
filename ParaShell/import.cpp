@@ -100,12 +100,15 @@ DWORD ImpTab::getMutatedImpTabSizeInShell()
 
 	// DLLNode总大小
 	// 预留一个单位大小给空节点
-	dwMutateImpSize += (m_vMutatedImpTab.size() + 1) * (2 * sizeof(DWORD) + 32 * sizeof(BYTE));
+	dwMutateImpSize += (m_vMutatedImpTab.size() + 1) * (
+		sizeof(Shell_MutatedImpTab_DLLNode::FirstThunk)
+		+ sizeof(Shell_MutatedImpTab_DLLNode::DLLName)
+		+ sizeof(Shell_MutatedImpTab_DLLNode::nFunc));
 	
 	// APINode总大小
-	for (std::vector<MutatedImpTab_DLLNode>::iterator iter = m_vMutatedImpTab.begin(); iter != m_vMutatedImpTab.end(); iter++)
+	for (auto iter = m_vMutatedImpTab.begin(); iter != m_vMutatedImpTab.end(); iter++)
 	{
-		dwMutateImpSize += 32 * sizeof(char) * iter->vThunks.size();
+		dwMutateImpSize += sizeof(Shell_MutatedImpTab_DLLNode_APINode) * iter->vThunks.size();
 	}
 
 	return dwMutateImpSize;

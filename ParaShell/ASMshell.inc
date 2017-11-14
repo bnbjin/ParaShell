@@ -46,7 +46,7 @@ MY_IMAGE_IMPORT_BY_NAME ENDS
 INDUCTION_DATA STRUCT
 	nShellStep	 		DD	0	; DLL可能会多次进入shell,通过统计进入步数来判断是EXE还是DLL
 	LuanchBase	 		DD	?	; 需要外壳程序写入	RVA
-	LuanchAllocBase	 	DD	?
+	LuanchAllocatedBase	 	DD	?
 	PresentImageBase	DD	?
 	nLuanchOriginalSize	DD	?
 	nLuanchPackSize		DD	?	; 需要外壳程序写入
@@ -72,20 +72,20 @@ MReserved	EQU 2h
 
 SHELLDATANODE STRUCT
 	_Type			DD ?	; ShellDataType
-	OriginalAddr	DD ?
-	MutatedAddr		DD ?
+	OriginalAddr	DD ?	; RVA to IamgeBase
+	MutatedAddr		DD ?	; RVA to ImageBase
 SHELLDATANODE ENDS
 
 LUANCH_DATA STRUCT
 	OEP					DD	?	; 需要外壳程序写入
+	OriginalImageBase	DD	?	; 需要外壳程序写入
 	IsDll				DD	?	; 需要外壳程序写入
 	MInfo				DD	?	; 需要外壳程序写入				
-	Nodes				SHELLDATANODE  (TYPE DWORD / MUTATEDINFO_BITSEPERITEM) DUP (<?, ?, ?>); 需要外壳程序写入	
+	Nodes				SHELLDATANODE  (8 * (TYPE DWORD) / MUTATEDINFO_BITSEPERITEM) DUP (<?, ?, ?>); 需要外壳程序写入	
 	nLuanchAllocStep    DD	0
 	szVirtualFree		DB	'VirtualFree', 0
 	VirtualFreeADDR		DD	0
 	szKer32DLLName		DB	'KERNEL32.dll', 0, 0
-	hFile				DD	0
 	; 已下数据需要从第一段SHELL复制到第二段SHELL
 	; 三个函数次序不可改变
 	GPAAddr				DD	0
@@ -96,13 +96,16 @@ LUANCH_DATA STRUCT
 	PresentImageBase	DD	0
 LUANCH_DATA ENDS
 
+ERR_FAILED			EQU -1
+ERR_SUCCEEDED		EQU	0
+ERR_INVALIDPARAMS	EQU 1
 
 comment /
 	FirstThunk|DLLName[32]|nFunc|FuncName[32]...
 /
 SHELL_MUTATED_IMPTAB_DLLNODE_APINODE UNION
 	Ordinal		DWORD	?
-	ProcName	BYTE	32 DUP (?)
+	ProcName	BYTE	128 DUP (?)
 SHELL_MUTATED_IMPTAB_DLLNODE_APINODE ENDS
 
 SHELL_MUTATED_IMPTAB_DLLNODE	STRUCT
@@ -112,6 +115,11 @@ SHELL_MUTATED_IMPTAB_DLLNODE	STRUCT
 	FuncName	SHELL_MUTATED_IMPTAB_DLLNODE_APINODE <?>
 SHELL_MUTATED_IMPTAB_DLLNODE 	ENDS
 
+SHELL_MUTATED_RELOCTAB STRUCT
+	Type_			DB	?
+	FirstTypeRVA	DD	?
+	Offset_			DW	?
+SHELL_MUTATED_RELOCTAB ENDS
 
 comment /
 	Description:
@@ -134,7 +142,6 @@ comment /
 /
 Proc_UnMutateImpTab	PROTO C , _RuntimeImageBase:DWORD, _MutateImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
 
-
 comment /
 	Description:	初始化原输入表
 					C convention
@@ -146,5 +153,18 @@ comment /
 /
 Proc_InitOrigianlImport PROTO C , _RuntimeImageBase:DWORD, _OriginalImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
 
+comment	/
+*description:	修正变异重定位信息
+*params:		[in]_OrigianlImageBase:DWORD
+*				[in]_RuntimeImageBase:DWORD
+*				[in + out]_MutatedRelocTabRVA:DWORD
+*reurns:		[eax] ERR_CODES
+/
+Proc_UnmutateRelocTab PROTO STDCALL\
+	, _OrigianlImageBase:DWORD, \
+	_RuntimeImageBase:DWORD, \
+	_MutatedRelocTabRVA:DWORD \
+
+PROC_TEST_MINFO PROTO STDCALL , _MInfo:DWORD, _Type:DWORD	
 
 ENDIF  ; __ASMSHELL_INC__

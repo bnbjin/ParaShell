@@ -20,7 +20,7 @@ bool ISMUTATEIMPORT = true;
 bool ISPACKRES = false;
 
 /*  重定位变异开关  */
-bool ISMUTATERELOC = false;
+bool ISMUTATERELOC = true;
 
 /*  区块融合开关  */
 bool ISMERGESECTION = false;

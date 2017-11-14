@@ -30,9 +30,6 @@
     <ClCompile Include="config.cpp">
       <Filter>cpp\src</Filter>
     </ClCompile>
-    <ClCompile Include="entry.cpp">
-      <Filter>cpp\src</Filter>
-    </ClCompile>
     <ClCompile Include="error.cpp">
       <Filter>cpp\src</Filter>
     </ClCompile>
@@ -72,12 +69,15 @@
     <ClCompile Include="singleton_t.cpp">
       <Filter>cpp\pattern</Filter>
     </ClCompile>
+    <ClCompile Include="entry_gui.cpp">
+      <Filter>cpp\src</Filter>
+    </ClCompile>
+    <ClCompile Include="entry_cui.cpp">
+      <Filter>cpp\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
-      <Filter>cpp\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="entry.h">
       <Filter>cpp\inc</Filter>
     </ClInclude>
     <ClInclude Include="error.h">
@@ -121,6 +121,9 @@
     </ClInclude>
     <ClInclude Include="singleton_t.h">
       <Filter>cpp\pattern</Filter>
+    </ClInclude>
+    <ClInclude Include="entry_gui.h">
+      <Filter>cpp\inc</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -5,6 +5,10 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ParaShell", "ParaShell\ParaShell.vcxproj", "{631551B1-CC02-4F36-91A8-9B496260ACA6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_exe", "testfiles\test_exe\test_exe.vcxproj", "{E3D36F35-C878-471A-B959-ADF727D74D31}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_dll", "testfiles\test_dll\test_dll.vcxproj", "{55A8840F-21CC-4382-A7D6-34363457FD91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -22,6 +26,24 @@ Global
 		{631551B1-CC02-4F36-91A8-9B496260ACA6}.Release|x64.Build.0 = Release|x64
 		{631551B1-CC02-4F36-91A8-9B496260ACA6}.Release|x86.ActiveCfg = Release|Win32
 		{631551B1-CC02-4F36-91A8-9B496260ACA6}.Release|x86.Build.0 = Release|Win32
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Debug|x64.ActiveCfg = Debug|x64
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Debug|x64.Build.0 = Debug|x64
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Debug|x86.ActiveCfg = Debug|Win32
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Debug|x86.Build.0 = Debug|Win32
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Debug|x86.Deploy.0 = Debug|Win32
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Release|x64.ActiveCfg = Release|x64
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Release|x64.Build.0 = Release|x64
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Release|x86.ActiveCfg = Release|Win32
+		{E3D36F35-C878-471A-B959-ADF727D74D31}.Release|x86.Build.0 = Release|Win32
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Debug|x64.ActiveCfg = Debug|x64
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Debug|x64.Build.0 = Debug|x64
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Debug|x86.ActiveCfg = Debug|Win32
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Debug|x86.Build.0 = Debug|Win32
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Debug|x86.Deploy.0 = Debug|Win32
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Release|x64.ActiveCfg = Release|x64
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Release|x64.Build.0 = Release|x64
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Release|x86.ActiveCfg = Release|Win32
+		{55A8840F-21CC-4382-A7D6-34363457FD91}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

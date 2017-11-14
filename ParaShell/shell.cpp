@@ -1,3 +1,4 @@
+#include <iostream>
 #include <windows.h>
 #include "shell.h"
 #include "error.h"
@@ -27,9 +28,6 @@ int buildShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, 
 
 	// 把原生shell的数据写入shell映像中
 	memcpy(*_ppShellSection, (&Label_Shell_Start), shellrawsize);
-	
-	/*  使原输入表所在区块可写  */
-	MakeOriginalImportSecWritable(_pImageBase);
 	
 	/* 修正伪装输入表字段 */
 	if (!fixFakedImpTabItem(_pImageBase, *_ppShellSection))
@@ -77,6 +75,11 @@ int buildShell(void* _pImageBase, std::vector<DataToShellNode> &_rvDataToShell, 
 		iter++;
 	}
 	
+	const PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
+	const PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(_pImageBase);	
+	pNTHeader->OptionalHeader.AddressOfEntryPoint = pLastSecHeader->VirtualAddress;
+	pNTHeader->OptionalHeader.BaseOfCode = pLastSecHeader->VirtualAddress;
+	
 	return	ERR_SUCCESS;
 }
 
@@ -88,7 +91,7 @@ returns:		bool
 */
 bool fixFakedImpTabItem(void* pImageBase, void* pSecShell)
 {
-	if (!pImageBase | !pSecShell)
+	if (!pImageBase || !pSecShell)
 	{
 		return false;
 	}
@@ -107,6 +110,8 @@ bool fixFakedImpTabItem(void* pImageBase, void* pSecShell)
 	pFakedImpTab->Thunk[2].u1.AddressOfData += Offset;
 
 	return true;
+
+
 }
 
 /*
@@ -117,7 +122,7 @@ returns:		bool
 */
 bool fixShellData(void* pImageBase, void* pSecShell)
 {
-	if (!pImageBase | !pSecShell)
+	if (!pImageBase || !pSecShell)
 	{
 		return false;
 	}
@@ -131,7 +136,8 @@ bool fixShellData(void* pImageBase, void* pSecShell)
 
 	PLuanch_Data pLuanchData = (PLuanch_Data)((DWORD)(pSecShell) + (DWORD)(&Lable_Luanch_Data_Start) - (DWORD)(&Label_Shell_Start));
 	pLuanchData->OEP = pNTHeader->OptionalHeader.AddressOfEntryPoint;
-	pLuanchData->IsDLL = 0; // TODO: 支持DLL
+	pLuanchData->OriginalImageBase = pNTHeader->OptionalHeader.ImageBase;
+	pLuanchData->IsDLL = pNTHeader->FileHeader.Characteristics & IMAGE_FILE_DLL ? 1 : 0; // TODO: 支持DLL
 	
 	return true;
 }
@@ -152,13 +158,25 @@ bool buildImpTab(
 	void* pSecShell,
 	DWORD Offset)
 {
-	if (!pImageBase | !pImpTabData | !nImpTabData | !pSecShell)
+	if (!pImageBase || !pImpTabData || !nImpTabData || !pSecShell || !Offset)
 	{
 		return false;
 	}
 
 	const PIMAGE_NT_HEADERS pNTHeader = getNTHeader(pImageBase);
 	const PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(pImageBase);	
+
+	/*  使原输入表所在区块可写  */
+	if (!MakeSecWritable(pImageBase,
+		pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress))
+	{
+		return false;
+	}
+	if (!MakeSecWritable(pImageBase,
+		pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT].VirtualAddress))
+	{
+		return false;
+	}
 
 	/* 复制变异输入表数据到外壳区块 */
 	memcpy((char*)((DWORD)pSecShell + Offset), pImpTabData, nImpTabData);
@@ -168,11 +186,12 @@ bool buildImpTab(
 	pLuanchData->MInfo.ImpTab = ISMUTATEIMPORT ? MInfo_ImpTabType::MIITT_MUTATED : MInfo_ImpTabType::MIITT_NOTHING;
 	pLuanchData->Nodes[ShellDataType::MImp].Type = ShellDataType::MImp;
 	pLuanchData->Nodes[ShellDataType::MImp].OriginalAddr = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-	pLuanchData->Nodes[ShellDataType::MImp].MutatedAddr = Offset;
-	
-	/*  修复PE头,使目标文件以shell为入口点  */
-	pNTHeader->OptionalHeader.AddressOfEntryPoint = pLastSecHeader->VirtualAddress;
-	pNTHeader->OptionalHeader.BaseOfCode = pLastSecHeader->VirtualAddress;
+	pLuanchData->Nodes[ShellDataType::MImp].MutatedAddr = pLastSecHeader->VirtualAddress + Offset;
+#ifdef _DEBUG
+	std::cout << "MImp::MutatedAddr:\t" << std::hex << pLuanchData->Nodes[ShellDataType::MImp].MutatedAddr << std::endl;
+#endif 
+
+	/*  修复PE头  */
 	pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress = pLastSecHeader->VirtualAddress + (DWORD)(&Label_Induction_Import_Start) - (DWORD)(&Label_Shell_Start);
 	pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size = (DWORD)(&Label_Induction_Import_End) - (DWORD)(&Label_Induction_Import_Start);
 	pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT].VirtualAddress = pLastSecHeader->VirtualAddress + (DWORD)(&Label_Induction_Import_End) - (DWORD)(&Label_Shell_Start);
@@ -197,14 +216,14 @@ bool buildRelocTab(
 	void* pSecShell,
 	DWORD Offset)
 {
-	if (!pImageBase | !pRelocTabData | !nRelocTabData | !pSecShell)
+	if (!pImageBase || !pRelocTabData || !nRelocTabData || !pSecShell || !Offset)
 	{
 		return false;
 	}
 
 	const PIMAGE_NT_HEADERS pNTHeader = getNTHeader(pImageBase);
 	const PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(pImageBase);	
-
+	
 	/* 复制变异重定位表数据到外壳区块 */
 	memcpy((char*)((DWORD)pSecShell + Offset), pRelocTabData, nRelocTabData);
 	
@@ -213,7 +232,10 @@ bool buildRelocTab(
 	pLuanchData->MInfo.RelocTab = ISMUTATERELOC ? MInfo_RelocTabType::MIRTT_MUTATED : MInfo_RelocTabType::MIRTT_NOTHING;
 	pLuanchData->Nodes[ShellDataType::MReloc].Type = ShellDataType::MReloc;
 	pLuanchData->Nodes[ShellDataType::MReloc].OriginalAddr = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;;	
-	pLuanchData->Nodes[ShellDataType::MReloc].MutatedAddr = Offset;
+	pLuanchData->Nodes[ShellDataType::MReloc].MutatedAddr = pLastSecHeader->VirtualAddress + Offset;
+#ifdef _DEBUG
+	std::cout << "MReloc::MutatedAddr:\t" << std::hex << pLuanchData->Nodes[ShellDataType::MReloc].MutatedAddr << std::endl;
+#endif 
 
 	/*  修复PE头  */
 	pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress = 0;

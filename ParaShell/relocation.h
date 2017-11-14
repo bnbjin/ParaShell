@@ -1,8 +1,9 @@
 #ifndef __RELOCATION_H__
 #define __RELOCATION_H__
 
-#include <windows.h>
+#include <exception>
 #include <vector>
+#include <windows.h>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -14,7 +15,7 @@ struct Shell_MutatedRelocTab_NODE
 {
 	BYTE   type;
 	DWORD  FirstTypeRVA;
-	BYTE   Offset[];
+	WORD   Offset[];
 };
 
 #pragma pack(4)
@@ -45,15 +46,20 @@ struct MutatedRelocTabInfo
 		pMutatedRelocTab(0), nMutatedRelocTab(sz)
 	{
 		pMutatedRelocTab = new char[nMutatedRelocTab];
-		memset(pMutatedRelocTab, 0, nMutatedRelocTab);
+		if (pMutatedRelocTab)
+			memset(pMutatedRelocTab, 0, nMutatedRelocTab);
 	}
 
 	~MutatedRelocTabInfo()
 	{
-		delete[] pMutatedRelocTab;
+		if (pMutatedRelocTab)
+			delete[] pMutatedRelocTab;
 	}
 };
 //typedef MutatedRelocTabInfo *PMutatedRelocTabInfo;
+
+#pragma warning(push)
+#pragma warning(disable:4290)
 
 class RelocTab
 {
@@ -74,7 +80,7 @@ private:
 	{
 		BYTE   type;
 		DWORD  FirstTypeRVA;
-		std::vector<BYTE>   Offset;
+		std::vector<WORD>   Offset;
 
 		IMAGE_BASE_RELOCATION_MUTATED() :
 			type(IMAGE_REL_BASED_ABSOLUTE),
@@ -90,9 +96,11 @@ private:
 		}
 	};
 
-	bool marshallMutatedRelocTab(void* pImageBase);
+	bool marshallMutatedRelocTab(void* pImageBase) throw(std::exception);
 
 	std::vector<IMAGE_BASE_RELOCATION_MUTATED> m_vMutatedRelocTab;
 };
+
+#pragma warning(pop)
 
 #endif // __RELOCATION_H__

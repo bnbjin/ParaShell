@@ -77,8 +77,8 @@ void* MergeMemBlock(void* _pImageBase, void* _pShellSection);
 
 
 /*
-	Description:	把原输入表所在区块属性设为可写
+	Description:	把指定区块属性设为可写
 */
-int	MakeOriginalImportSecWritable(void *_pImageBase);
+bool MakeSecWritable(void *_pImageBase, DWORD Offset);
 
 #endif //__PE_UTILITIES_H__

@@ -17,19 +17,20 @@ _EntryPoint:
 	pushad
 	call __next0
 
+Label_Faked_ImpTab_Start	LABEL	DWORD
+
 Label_Induction_Import_Start 	LABEL	DWORD
-	
 	ImportTable		MY_IMAGE_IMPORT_DESCRIPTOR <<GPAAddr - Label_Shell_Start>, 0, 0, (DLLName - Label_Shell_Start), (GPAAddr - Label_Shell_Start)>
 	DumbDescriptor	MY_IMAGE_IMPORT_DESCRIPTOR <<0>, 0, 0, 0, 0>       
-
 Label_Induction_Import_End	LABEL	DWORD	
 	
-	; IAT
+Label_Induction_IAT_Start	LABEL	DWORD
 	; 三个函数次序不可改变
 	GPAAddr	MY_IMAGE_IMPORT_THUNK	<<GPAThunk - Label_Shell_Start>>	; GetProcAddress Address
 	GMHAddr	MY_IMAGE_IMPORT_THUNK	<<GMHThunk - Label_Shell_Start>>	; GetModuleHandle Address
 	LLAAddr	MY_IMAGE_IMPORT_THUNK	<<LLAThunk - Label_Shell_Start>>	; LoadLibraryA Address
 			MY_IMAGE_IMPORT_THUNK	<<0>>
+Label_Induction_IAT_End		LABEL	DWORD
 
 	; DLLName
 	DLLName	DB	'KERNEL32.dll', 0, 0
@@ -39,7 +40,8 @@ Label_Induction_Import_End	LABEL	DWORD
 	GMHThunk	MY_IMAGE_IMPORT_BY_NAME	<0, 'GetModuleHandleA'>
 	LLAThunk	MY_IMAGE_IMPORT_BY_NAME	<0, 'LoadLibraryA'>
 
-	; todo: mutate reloc data
+Label_Faked_ImpTab_End	LABEL	DWORD
+
 Label_Induction_Data_Start	LABEL	DWORD
 	InductionData INDUCTION_DATA <>
 Label_Induction_Data_End	LABEL	DWORD
@@ -54,17 +56,15 @@ __next0:
 	mov		eax, dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]
 	.if	eax != 0
 		push	ebp
-		jmp		dword ptr [ebp + (InductionData.LuanchAllocBase - Label_Induction_Start)]
+		jmp		dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)]
 	.endif
 	inc		dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]	
 	
-	; 取当前映像基址，如果是EXE在后面会用Getmulehandle取基址的
-	; todo: console获取错误地址
+	;  如果是DLL，取当前映像基址；如果是EXE在后面会用Getmulehandle取基址的
 	mov		eax, dword ptr [esp + 24h]
 	mov		dword ptr [ebp + (InductionData.PresentImageBase - Label_Induction_Start)], eax
 	
 	; *  准备解压缩第二段外壳代码  *
-	
 	; GetModuleHandle(DLLName)
 	lea		esi, [ebp + (DLLName - Label_Induction_Start)]
 	push	esi
@@ -77,16 +77,16 @@ __next0:
 	call	dword ptr [ebp + (GPAAddr - Label_Induction_Start)]
 	mov		dword ptr [ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)],eax
 	
-	; VirtualAlloc(0, nLuanchOriginalSize, MEM_COMMIT, PAGE_READWRITE)
-	push	PAGE_READWRITE
+	; VirtualAlloc(0, nLuanchOriginalSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+	push	PAGE_EXECUTE_READWRITE
 	push	MEM_COMMIT
 	push	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)]
 	push	0
 	call	dword ptr [ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)]
 	
-	; 将外壳第二段地址放到LuanchAllocBase，DLL退出时会用到
+	; 将外壳第二段地址放到LuanchAllocatedBase，DLL退出时会用到
 	push	eax ; 对应下面的pop edx
-	mov		dword ptr [ebp + (InductionData.LuanchAllocBase - Label_Induction_Start)], eax
+	mov		dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)], eax
 	
 	; *  解压缩第二段外壳代码  *
 	
@@ -96,13 +96,13 @@ __next0:
 	;			前面分配的内存空间, 
 	;			InductionData.nLuanchOriginalSize);
 	push 	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)] 
-	push	eax
+	push	dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)]
 	push 	dword ptr [ebp + (InductionData.nLuanchPackSize - Label_Induction_Start)]
 	mov		ebx, dword ptr [ebp + (InductionData.LuanchBase - Label_Induction_Start)]
 	add		ebx, ebp
 	push	ebx
 	call	Proc_aP_depack_asm_safe
-	add		esp, 10h
+	add		esp, 4 * TYPE DWORD
 	
 	pop		edx	; 对应上面的push eax
 	; 复制三个初始函数的地址到第二段外壳的数据表中
@@ -112,8 +112,8 @@ __next0:
 MoveThreeFuncAddr:
 	mov		eax, dword ptr [esi]
 	mov		dword ptr [edi], eax
-	add		esi,4h
-	add		edi,4h
+	add		esi, TYPE DWORD
+	add		edi, TYPE DWORD
 	loop	MoveThreeFuncAddr
 	
 	; 复制ap_depack_asm地址到第二段外壳的数据表中
@@ -362,8 +362,6 @@ Label_Induction_End LABEL DWORD
 
 
 Label_Luanch_Start	LABEL	DWORD
-	; need to popad
-	
 	; edx = Allocated Label_Luanch_Start VA
 	call	$+5
 	pop		edx
@@ -371,11 +369,13 @@ Label_Luanch_Start	LABEL	DWORD
 
 	; ebp = Label_Induction_Start VA
 	pop		ebp
-	
+
 	; 如果是DLL，则跳到OEP
-	mov		eax, dword ptr [edx + (InductionData.nShellStep - Label_Luanch_Start)]
-	.if		eax != 0;dll退出时从这里进入OEP	
-	        popad
+	mov		eax, dword ptr [ebp + (InductionData.nShellStep - Label_Shell_Start)]
+	mov		ebx, dword ptr [edx + (LuanchData.IsDll - Label_Luanch_Start)]
+	.if		(eax > 1) && (ebx != 0)
+			;dll退出时从这里进入OEP	
+			; TODO 修改跳转位置，支持再次反调试
 	        jmp _Return_OEP
 	.endif
 	
@@ -403,7 +403,6 @@ Label_Luanch_Start	LABEL	DWORD
 		pop		edx
 	.endif
 
-
 	; GetProcAddress(handle("kernel32.dll"), "VirtualFree")	
 	; GetProcAddress会修改edx
 	push 	edx
@@ -415,41 +414,62 @@ Label_Luanch_Start	LABEL	DWORD
 	pop 	edx
 	mov		dword ptr [edx + (LuanchData.VirtualFreeADDR - Label_Luanch_Start)], eax
 	
-	
-	; *  解压缩各区块  *
+	; *  TODO: 解压缩各区块  *
+
 	; *  恢复原输入表  *
-	mov 	eax, DWORD PTR [edx + (LuanchData.MInfo - Label_Luanch_Start)]
-	shr		eax, (TYPE DWORD / MUTATEDINFO_BITSEPERITEM - 1 - MImp)
-	.IF eax == 0
+	push	MImp
+	push	DWORD PTR [edx + (LuanchData.MInfo - Label_Luanch_Start)]
+	call	PROC_TEST_MINFO
+	.IF		eax == 0
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
-		push	DWORD PTR [edx + (LuanchData.Nodes[MImp].OriginalAddr - Label_Luanch_Start)]
+		lea		eax, DWORD PTR [edx + (LuanchData.Nodes.OriginalAddr - Label_Luanch_Start)]
+		add		eax, MImp * TYPE LuanchData.Nodes
+		push	DWORD PTR [eax]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 		call	Proc_InitOrigianlImport
-		add		esp, 14h
+		add		esp, 5 * TYPE DWORD
 	.ELSE
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
-		push	DWORD PTR [edx + (LuanchData.Nodes[MImp].MutatedAddr - Label_Luanch_Start)]
+		lea		eax, DWORD PTR [edx + (LuanchData.Nodes.MutatedAddr - Label_Luanch_Start)]
+		add		eax, MImp * TYPE LuanchData.Nodes
+		push	DWORD PTR [eax]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 		call	Proc_UnMutateImpTab
-		add		esp, 14h
+		add		esp, 5 * TYPE DWORD 
 	.ENDIF
+	
 	; *  修正重定位数据  *
+	push	MReloc
+	push	DWORD PTR [edx + (LuanchData.MInfo - Label_Luanch_Start)]
+	call	PROC_TEST_MINFO
+	.IF		eax == 0
+		xor		eax, eax
+	.ELSE
+		lea		eax, DWORD PTR [edx + (LuanchData.Nodes.MutatedAddr - Label_Luanch_Start)]
+		add		eax, MReloc * TYPE LuanchData.Nodes
+		push	DWORD PTR [eax]
+		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
+		push	DWORD PTR [edx + (LuanchData.OriginalImageBase - Label_Luanch_Start)]
+		call	Proc_UnmutateRelocTab
+	.ENDIF
+	
 	; *  anti  dump  *
 	
 	
 	; *  开始跳转到OEP  *
 	; TODO: DLL情况未知
-	inc 	dword ptr [edx + (InductionData.nShellStep - Label_Luanch_Start)]
+	inc 	dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]
 	mov		eax, dword ptr [edx + (LuanchData.OEP - Label_Luanch_Start)]
 	add		eax, dword ptr [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
-	mov		dword ptr [edx + (_Return_OEP - Label_Luanch_Start)], eax
+	mov		dword ptr [edx + (LABEL_OEP - Label_Luanch_Start)], eax
+_Return_OEP: 
 	popad
 	DB		68h	; encode of push
-_Return_OEP: 
+LABEL_OEP LABEL BYTE 
 	DD		0
 	ret
 
@@ -458,7 +478,6 @@ Lable_Luanch_Data_Start	LABEL	DWORD
 LuanchData	LUANCH_DATA	<>
 
 Lable_Luanch_Data_End	LABEL 	DWORD
-
 
 ORDINAL_FLAG_DWORD	EQU	80000000h	
 comment /
@@ -488,11 +507,11 @@ Proc_UnMutateImpTab	PROC C PRIVATE \
 		call 	_GMHAddr	
 		pop 	edx
 		.IF 	eax == 0
-		push 	edx
-		lea 	eax, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).DLLName
-		push 	eax
-		call 	_LLAAddr	
-		pop 	edx
+			push 	edx
+			lea 	eax, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).DLLName
+			push 	eax
+			call 	_LLAAddr	
+			pop 	edx
 		.ENDIF
 		
 		; 获取所有函数的地址
@@ -517,7 +536,9 @@ Proc_UnMutateImpTab	PROC C PRIVATE \
 		; }
 		mov 	ebx, eax
 		mov		ecx, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).nFunc
-		add		esi, 28h
+		add		esi, TYPE SHELL_MUTATED_IMPTAB_DLLNODE.FirstThunk
+		add		esi, SIZEOF SHELL_MUTATED_IMPTAB_DLLNODE.DLLName
+		add		esi, TYPE SHELL_MUTATED_IMPTAB_DLLNODE.nFunc
 		.WHILE  ecx != 0
 			mov 	eax, DWORD PTR [edx + esi]
 			and 	eax, ORDINAL_FLAG_DWORD
@@ -542,8 +563,8 @@ Proc_UnMutateImpTab	PROC C PRIVATE \
 			mov		DWORD PTR [edx + edi], eax
 			
 			
-			add 	esi, 20h
-			add 	edi, 4h
+			add 	esi, TYPE SHELL_MUTATED_IMPTAB_DLLNODE_APINODE 
+			add 	edi, TYPE DWORD
 			dec 	ecx
 		.ENDW
 		
@@ -632,10 +653,77 @@ Proc_InitOrigianlImport PROC C PRIVATE \
 	
 Proc_InitOrigianlImport ENDP
 
- 
+PROC_TEST_MINFO PROC STDCALL PRIVATE	\
+	USES	ebx	ecx	\
+	, _MInfo:DWORD, _Type:DWORD	
+
+	mov		eax, _MInfo
+	mov		ebx, 0
+	add		ebx, 1
+	mov		ecx, _Type
+	shl		ebx, cl 
+	and		eax, ebx
+
+	ret
+PROC_TEST_MINFO ENDP 
+
+comment	/
+*description:	修正变异重定位信息
+*params:		[in]_OriginalImageBase:DWORD
+*				[in]_RuntimeImageBase:DWORD
+*				[in + out]_MutatedRelocTabRVA:DWORD
+*reurns:		[eax] ERR_CODES
+/
+Proc_UnmutateRelocTab PROC STDCALL PRIVATE \
+	USES ebx edi esi \
+	, _OriginalImageBase:DWORD, \
+	_RuntimeImageBase:DWORD, \
+	_MutatedRelocTabRVA:DWORD \
+
+	LOCAL	Distance:DWORD
+
+	.IF ([_OriginalImageBase] == 0) \
+		|| ([_RuntimeImageBase] == 0) \
+		|| ([_MutatedRelocTabRVA] == 0)
+		mov		eax, ERR_INVALIDPARAMS
+		ret
+	.ENDIF 
+	
+	mov		ebx, _RuntimeImageBase
+	mov		esi, _MutatedRelocTabRVA
+
+	mov		eax, _RuntimeImageBase 	
+	sub		eax, _OriginalImageBase
+	mov		Distance, eax
+	
+	mov		al, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Type_ 
+	.WHILE	al == IMAGE_REL_BASED_HIGHLOW 
+		mov		edi, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).FirstTypeRVA
+		.BREAK .IF (edi == 0)
+		
+		mov		eax, Distance
+		add		DWORD PTR [ebx + edi], eax
+
+		lea		esi, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Offset_
+		sub		esi, ebx 
+		.WHILE	WORD PTR [ebx + esi] != 0
+			xor		eax, eax
+			mov		ax, WORD PTR [ebx + esi]
+			add		edi, eax 
+			mov		eax, Distance
+			add		DWORD PTR [ebx + edi], eax
+			add		esi, TYPE SHELL_MUTATED_RELOCTAB.Offset_
+		.ENDW
+		add		esi, TYPE SHELL_MUTATED_RELOCTAB.Offset_
+
+		mov		al, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Type_ 
+	.ENDW
+
+	mov		eax, ERR_SUCCEEDED
+	ret
+Proc_UnmutateRelocTab ENDP
 
 Label_Luanch_End	LABEL 	DWORD
 Label_Shell_End	LABEL	DWORD
-
 
 END

@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <windows.h>
 #include "pe_utilities.h"
 #include "error.h"
@@ -45,14 +46,12 @@ PIMAGE_SECTION_HEADER getSecHeader(const void* _imagebase)
 */
 PIMAGE_SECTION_HEADER getLastSecHeader(const void* _pImageBase)
 {
+	PIMAGE_NT_HEADERS pNTHeaders = (PIMAGE_NT_HEADERS)getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pSecHeader = getSecHeader(_pImageBase);
 
-	while (0 != pSecHeader->PointerToRawData && 0 != pSecHeader->SizeOfRawData)
-	{
-		pSecHeader++;
-	}
+	pSecHeader += pNTHeaders->FileHeader.NumberOfSections - 1;
 
-	return --pSecHeader;
+	return pSecHeader;
 }
 
 
@@ -176,33 +175,42 @@ unsigned int CreateNewSection(void* _pImageBase, const DWORD _secsize, void **_p
 {
 	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pNewSecHeader = getLastSecHeader(_pImageBase) + 1;
-	PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(_pImageBase);
+	PIMAGE_SECTION_HEADER pLastValidSecHeader = getLastSecHeader(_pImageBase);
 
 	/*  把所有区块往后移动  */
 	/* 从最后一个区块开始，向后一个区块移动*/
 	/*
-	
-	for (int i = pNTHeader->FileHeader.NumberOfSections; i > 0; i--, pLastSecHeader--)
+	for (int i = pNTHeader->FileHeader.NumberOfSections; i > 0; i--, pLastValidSecHeader--)
 	{
-		memcpy(pLastSecHeader + 1, pLastSecHeader, sizeof(IMAGE_SECTION_HEADER));
-	}*/
+		memcpy(pLastValidSecHeader + 1, pLastValidSecHeader, sizeof(IMAGE_SECTION_HEADER));
+	}
+	*/
 
+	/* 
+		有些文件的区块是空区块。如.textbbs 
+		需要挪到最后一个有效的区块
+	*/
+	while (0 == pLastValidSecHeader->PointerToRawData)
+	{
+		pLastValidSecHeader--;
+	}
 
 	/*  填写新区块信息  */
 	memset(pNewSecHeader, 0, sizeof(IMAGE_SECTION_HEADER));
 	/* Name, VirtualAddress, VirtualSize, RawAddress, RawSize, Characteristics */
 	const char newsecname[8] = { ".shell" };
 	memcpy(pNewSecHeader->Name, newsecname, 8);
-	pNewSecHeader->VirtualAddress = pLastSecHeader->VirtualAddress + AlignSize(pLastSecHeader->Misc.VirtualSize, pNTHeader->OptionalHeader.SectionAlignment);
+	pNewSecHeader->VirtualAddress = pLastValidSecHeader->VirtualAddress + AlignSize(pLastValidSecHeader->Misc.VirtualSize, pNTHeader->OptionalHeader.SectionAlignment);
 	pNewSecHeader->Misc.VirtualSize = AlignSize(_secsize, pNTHeader->OptionalHeader.SectionAlignment);
-	pNewSecHeader->PointerToRawData = pLastSecHeader->PointerToRawData + AlignSize(pLastSecHeader->SizeOfRawData, pNTHeader->OptionalHeader.FileAlignment);
+	pNewSecHeader->PointerToRawData = pLastValidSecHeader->PointerToRawData + AlignSize(pLastValidSecHeader->SizeOfRawData, pNTHeader->OptionalHeader.FileAlignment);
 	pNewSecHeader->SizeOfRawData = AlignSize(_secsize, pNTHeader->OptionalHeader.FileAlignment);
 	pNewSecHeader->Characteristics = 0xE0000020;
 
 
 	/*  分配新区块内存  */
 	DWORD ulNewSecSize = AlignSize(_secsize, pNTHeader->OptionalHeader.SectionAlignment);
-	*_ppNewSection = new char[ulNewSecSize];
+	void* ptr = new char[ulNewSecSize];
+	*_ppNewSection = ptr;
 	memset(*_ppNewSection, 0, ulNewSecSize);
 
 
@@ -211,7 +219,6 @@ unsigned int CreateNewSection(void* _pImageBase, const DWORD _secsize, void **_p
 	pNTHeader->OptionalHeader.SizeOfImage = AlignSize(pNTHeader->OptionalHeader.SizeOfImage + ulNewSecSize, pNTHeader->OptionalHeader.SectionAlignment);
 	pNTHeader->FileHeader.NumberOfSections++;
 	pNTHeader->OptionalHeader.SizeOfCode += ulNewSecSize;
-
 
 	return ERR_SUCCESS;
 }
@@ -242,27 +249,30 @@ void* MergeMemBlock(void* _pImageBase, void* _pShellSection)
 	return pNewMemBlock;
 }
 
-
 /*
-	Description:	把原输入表所在区块属性设为可写
+	Description:	把指定区块属性设为可写
 */
-int	MakeOriginalImportSecWritable(void *_pImageBase)
+bool MakeSecWritable(void *_pImageBase, DWORD Offset)
 {
+	if (!_pImageBase || !Offset)
+	{
+		return false;
+	}
+
 	PIMAGE_NT_HEADERS pNTHeader = getNTHeader(_pImageBase);
 	PIMAGE_SECTION_HEADER pSecHeader = getSecHeader(_pImageBase);
-	IMAGE_DATA_DIRECTORY ImpD = (IMAGE_DATA_DIRECTORY)(pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]);
 
 	while (!(
-		ImpD.VirtualAddress >= pSecHeader->VirtualAddress \
-		&& ImpD.VirtualAddress <= (pSecHeader->VirtualAddress + pSecHeader->Misc.VirtualSize)))
+		Offset >= pSecHeader->VirtualAddress \
+		&& Offset <= (pSecHeader->VirtualAddress + pSecHeader->Misc.VirtualSize)))
 	{
 		pSecHeader++;
 	}
-	if (ImpD.VirtualAddress >= pSecHeader->VirtualAddress \
-		&& ImpD.VirtualAddress <= (pSecHeader->VirtualAddress + pSecHeader->Misc.VirtualSize))
+	if (Offset >= pSecHeader->VirtualAddress \
+		&& Offset <= (pSecHeader->VirtualAddress + pSecHeader->Misc.VirtualSize))
 	{
 		pSecHeader->Characteristics |= IMAGE_SCN_MEM_WRITE;
 	}
 
-	return ERR_SUCCESS;
+	return true;
 }

@@ -3,7 +3,14 @@
 
 RelocTab::RelocTab(void* pImageBase) : m_vMutatedRelocTab()
 {
-	marshallMutatedRelocTab(pImageBase);
+	try
+	{
+		marshallMutatedRelocTab(pImageBase);
+	}
+	catch (std::exception& e)
+	{
+		e.what();
+	}
 }
 
 bool RelocTab::reset(void* pImageBase)
@@ -43,6 +50,8 @@ bool RelocTab::dumpInShellForm(void* pMem)
 			pData->Offset[i] = *iterO;
 		}
 		pData->Offset[i] = 0; // 空字段表示结束
+
+		pData = (Shell_MutatedRelocTab_NODE*)&(pData->Offset[i + 1]);
 	}
 
 	return true;
@@ -60,15 +69,20 @@ DWORD RelocTab::getMutatedRelocTabSizeInShell()
 		
 		for (auto iterB = iter->Offset.begin(); iterB != iter->Offset.end(); ++iterB)
 		{
-			dwRes += sizeof(BYTE);
+			dwRes += sizeof(*iterB);
 		}
 
 		// 空字段表示块结束
-		dwRes += sizeof(BYTE);
+		dwRes += sizeof(*(iter->Offset.begin()));
 	}
 
 	// 空块表示结束
-	dwRes += sizeof(BYTE) + sizeof(DWORD) + sizeof(BYTE);
+	if (dwRes)
+	{
+		dwRes += sizeof(Shell_MutatedRelocTab_NODE::type)
+			+ sizeof(Shell_MutatedRelocTab_NODE::FirstTypeRVA)
+			+ sizeof(Shell_MutatedRelocTab_NODE::Offset[0]);
+	}
 
 	return dwRes;
 }
@@ -91,18 +105,12 @@ bool RelocTab::marshallMutatedRelocTab(void* pImageBase)
 	}
 	
 	const PIMAGE_NT_HEADERS		pNTHeader = getNTHeader(pImageBase);
-	PIMAGE_DATA_DIRECTORY		pRelocDir = NULL;
-	PIMAGE_BASE_RELOCATION2		pBaseReloc = NULL;
+	PIMAGE_DATA_DIRECTORY		pRelocDir = &pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+	PIMAGE_BASE_RELOCATION2		pBaseReloc = (PIMAGE_BASE_RELOCATION2)RVAToPtr(pImageBase, pRelocDir->VirtualAddress);
 	IMAGE_BASE_RELOCATION_MUTATED	tmpMutatedRelocTab_Node;
 
-	pRelocDir = &pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
-	pBaseReloc = (PIMAGE_BASE_RELOCATION2)RVAToPtr(pImageBase, pRelocDir->VirtualAddress);
-	
-	// 如果没有重定位数据，则直接返回
 	if (0 == pRelocDir->VirtualAddress)
-	{
-		return true;
-	}
+		throw std::exception("Relocation Table is empty.");
 
 	while (pBaseReloc->VirtualAddress != 0)
 	{
@@ -111,7 +119,7 @@ bool RelocTab::marshallMutatedRelocTab(void* pImageBase)
 		tmpMutatedRelocTab_Node.clear();
 		
 		// type
-		tmpMutatedRelocTab_Node.type = pBaseReloc->TypeOffset[i] & 0xf000;	
+		tmpMutatedRelocTab_Node.type = pBaseReloc->TypeOffset[i] >> 0x0c;
 		if (IMAGE_REL_BASED_HIGHLOW != tmpMutatedRelocTab_Node.type)
 		{
 			m_vMutatedRelocTab.clear();
@@ -122,26 +130,22 @@ bool RelocTab::marshallMutatedRelocTab(void* pImageBase)
 		accumulation = pBaseReloc->VirtualAddress + (pBaseReloc->TypeOffset[i] & 0x0fff);
 		tmpMutatedRelocTab_Node.FirstTypeRVA = accumulation;
 
-		while (true)
+		while (((DWORD)&(pBaseReloc->TypeOffset[i+1]) - (DWORD)pBaseReloc)
+			< pBaseReloc->SizeOfBlock)
 		{
 			i++;
-			const WORD tmpType = pBaseReloc->TypeOffset[i] & 0xf000;
-			const DWORD tmpOffset = pBaseReloc->TypeOffset[i] & 0x0fff;
+			WORD tmpType = pBaseReloc->TypeOffset[i] >> 0x0c;
+			WORD tmpOffset = pBaseReloc->TypeOffset[i] & 0x0fff;
 
 			if (IMAGE_REL_BASED_HIGHLOW == tmpType)
 			{	// x86
 				tmpMutatedRelocTab_Node.Offset.push_back(
-					(BYTE)((tmpOffset + pBaseReloc->VirtualAddress) - accumulation));
+					(WORD)((tmpOffset + pBaseReloc->VirtualAddress) - accumulation));
 				accumulation = pBaseReloc->VirtualAddress + (pBaseReloc->TypeOffset[i] & 0x0fff);
-			}
-			else if (IMAGE_REL_BASED_ABSOLUTE == tmpType)
-			{
-				break;
 			}
 			else
 			{
-				m_vMutatedRelocTab.clear();
-				return false;
+				continue;
 			}
 		}
 
@@ -151,85 +155,3 @@ bool RelocTab::marshallMutatedRelocTab(void* pImageBase)
 
 	return true;
 }
-
-
-//：/*
-//	Description:	重定位表变异处理函数
-//*/
-//bool MutateRelocation()
-//{
-//	PIMAGE_DATA_DIRECTORY		pRelocDir = NULL;
-//	PIMAGE_BASE_RELOCATION2		pBaseReloc = NULL;
-//
-//	PCHAR						pRelocBufferMap = NULL;
-//	PCHAR						pData = NULL;
-//	UINT						nRelocSize = NULL;
-//	UINT						nSize = 0;
-//	UINT						nType = 0;
-//	UINT						nIndex = 0;
-//	UINT						nTemp = 0;
-//	UINT						nNewItemOffset = 0;
-//	UINT						nNewItemSize = 0;
-//
-//
-//	pRelocDir = &m_pntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
-//	nRelocSize = pRelocDir->Size;
-//	pBaseReloc = (PIMAGE_BASE_RELOCATION2)RVAToPtr(pRelocDir->VirtualAddress);
-//
-//	// 如果没有重定位数据，则直接返回
-//	if (pRelocDir->VirtualAddress == 0)
-//	{
-//		return TRUE;
-//	}
-//	//申请临时缓存空间
-//	pRelocBufferMap = new char[nRelocSize];
-//	if (pRelocBufferMap == NULL)
-//	{
-//		return FALSE;
-//	}
-//	ZeroMemory(pRelocBufferMap, nRelocSize);
-//
-//	// 
-//	pData = pRelocBufferMap;
-//
-//	while (pBaseReloc->VirtualAddress != 0)
-//	{
-//		nNewItemSize = (pBaseReloc->SizeOfBlock - 8) / 2;//保存新数据需要的字节长
-//
-//		while (nNewItemSize != 0)
-//		{
-//			nType = pBaseReloc->TypeOffset[nIndex] >> 0x0c;//取type
-//
-//			if (nType == 0x3)
-//			{
-//				//取出ItemOffset，加上本段重定位起始地址 ，减去nTemp,得到的值准备放到新重定位表结构中
-//				nNewItemOffset = ((pBaseReloc->TypeOffset[nIndex] & 0x0fff) + pBaseReloc->VirtualAddress) - nTemp;
-//				if (nNewItemOffset > 0xff)//如果是本段重定位数据第一项
-//				{
-//					*(BYTE *)(pData) = 3;
-//					pData += sizeof(BYTE);
-//					*(DWORD *)pData = (DWORD)(nNewItemOffset);
-//					pData += sizeof(DWORD);
-//
-//				}
-//				else
-//				{
-//					*(BYTE *)(pData) = (BYTE)(nNewItemOffset);
-//					pData += sizeof(BYTE);
-//				}
-//				nTemp += nNewItemOffset;
-//			}
-//			nNewItemSize--;
-//			nIndex++;
-//		}
-//
-//		nIndex = 0;
-//		pBaseReloc = (PIMAGE_BASE_RELOCATION2)((DWORD)pBaseReloc + pBaseReloc->SizeOfBlock);
-//	}
-//
-//	memset((PCHAR)RVAToPtr(pRelocDir->VirtualAddress), 0, nRelocSize);
-//	memcpy((PCHAR)RVAToPtr(pRelocDir->VirtualAddress), pRelocBufferMap, nRelocSize);
-//	delete pRelocBufferMap;
-//
-//	return true;
-//}

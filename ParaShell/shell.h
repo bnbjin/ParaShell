@@ -30,7 +30,7 @@ struct Induction_Data
 {
 	DWORD	nShellStep;
 	DWORD	LuanchBase;			// RVA
-	DWORD   LuanchAllocBase;
+	DWORD   LuanchAllocatedBase;
 	DWORD   ImageBase;
 	DWORD	nLuanchOriginalSize;
 	DWORD   nLuanchPackSize;
@@ -43,8 +43,7 @@ struct Induction_Data
 struct MutatedInfo
 {
 	DWORD	ImpTab : MUTATEDINFO_BITSEPERITEM, \
-			RelocTab : MUTATEDINFO_BITSEPERITEM, \
-			Reserved;
+			RelocTab : MUTATEDINFO_BITSEPERITEM; \
 };
 
 enum MInfo_ImpTabType
@@ -70,16 +69,17 @@ enum ShellDataType
 struct ShellDataNode
 {
 	DWORD	Type;	// ShellDataType
-	DWORD	OriginalAddr;
-	DWORD	MutatedAddr;
+	DWORD	OriginalAddr;	// RVA to ImageBase
+	DWORD	MutatedAddr;	// RVA to ImageBase
 };
 
 struct Luanch_Data
 {
 	DWORD	OEP;
+	DWORD	OriginalImageBase;
 	DWORD	IsDLL;
 	MutatedInfo		MInfo;			
-	ShellDataNode	Nodes[sizeof(MutatedInfo)/MUTATEDINFO_BITSEPERITEM];
+	ShellDataNode	Nodes[8 * sizeof(MutatedInfo) / MUTATEDINFO_BITSEPERITEM];
 	BYTE	SectionPackInfo[0xa0];
 };
 

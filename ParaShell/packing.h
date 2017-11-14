@@ -8,9 +8,9 @@
 #pragma pack(1)
 struct PackInfoNode
 {	
-	void			*OriginalOffset;	// RVA
+	void	*OriginalOffset;	// RVA
 	DWORD	OriginalSize;
-	void			*PackedOffset;	// RVA
+	void	*PackedOffset;	// RVA
 	DWORD	PackedSize;
 };
 #pragma pack(pop)

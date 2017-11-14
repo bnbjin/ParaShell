@@ -1,3 +1,4 @@
+#include <iostream>
 #include <exception>
 #include <windows.h>
 #include "pediy.h"
@@ -24,7 +25,9 @@ int ProtTheFile(TCHAR *szFilePath)
 	void* pExtraData = 0;
 	void* pShellSection = 0;
 	DWORD ulExtraDataSize = 0;
-
+	std::vector<DataToShellNode> vDTS;
+	DataToShellNode tmpDTSN;
+	
 	try
 	{
 		ISWORKING = true;
@@ -38,8 +41,6 @@ int ProtTheFile(TCHAR *szFilePath)
 		// 	读取文件到堆中
 		ReadFileToHeap(szFilePath, &hFile, &pImageBase);
 
-		// FixPEHeader(pimagebase);
-		
 		/*  额外数据读取  */
 		if (ISSAVEDATA)
 		{
@@ -48,14 +49,15 @@ int ProtTheFile(TCHAR *szFilePath)
 
 		CloseHandle(hFile);
 
-		// log : 文件读入完毕
-
-
 		/*  处理重定位数据  */
 		RelocTab reloctab(pImageBase);
 		MutatedRelocTabInfo MRelocTabInfo(reloctab.getMutatedRelocTabSizeInShell());
-		if (ISMUTATERELOC)
-		{	 
+		if (ISMUTATERELOC && reloctab.getMutatedRelocTabSizeInShell())
+		{
+			tmpDTSN.DataType = ShellDataType::MReloc;
+			tmpDTSN.pData = MRelocTabInfo.pMutatedRelocTab;
+			tmpDTSN.nData = MRelocTabInfo.nMutatedRelocTab;
+			vDTS.push_back(tmpDTSN);
 			if (!reloctab.dumpInShellForm(MRelocTabInfo.pMutatedRelocTab))
 				throw std::exception("reloctab.dumpInShellForm failed");
 		}
@@ -66,6 +68,10 @@ int ProtTheFile(TCHAR *szFilePath)
 		MutatedImpTabInfo MImpTabInfo(imptab.getMutatedImpTabSizeInShell());
 		if (ISMUTATEIMPORT)
 		{
+			tmpDTSN.DataType = ShellDataType::MImp;
+			tmpDTSN.pData = MImpTabInfo.pMutatedImpTab;
+			tmpDTSN.nData = MImpTabInfo.nMutatedImpTab;
+			vDTS.push_back(tmpDTSN);
 			if (!imptab.dumpInShellForm(MImpTabInfo.pMutatedImpTab))
 				throw std::exception("imptab.dumpInShellForm failed.");
 		}
@@ -94,22 +100,6 @@ int ProtTheFile(TCHAR *szFilePath)
 
 
 		/*  添加shell段  */
-		std::vector<DataToShellNode> vDTS;
-		DataToShellNode tmpDTSN;
-		if (ISMUTATEIMPORT)
-		{
-			tmpDTSN.DataType = ShellDataType::MImp;
-			tmpDTSN.pData = MImpTabInfo.pMutatedImpTab;
-			tmpDTSN.nData = MImpTabInfo.nMutatedImpTab;
-			vDTS.push_back(tmpDTSN);
-		}
-		if (ISMUTATERELOC)
-		{
-			tmpDTSN.DataType = ShellDataType::MReloc;
-			tmpDTSN.pData = MRelocTabInfo.pMutatedRelocTab;
-			tmpDTSN.nData = MRelocTabInfo.nMutatedRelocTab;
-			vDTS.push_back(tmpDTSN);
-		}
 		if (ERR_SUCCESS != buildShell(pImageBase, vDTS, &pShellSection))
 		{
 			throw std::exception("buildShell failed.");
@@ -150,8 +140,8 @@ int ProtTheFile(TCHAR *szFilePath)
 	catch (std::exception& e)
 	{
 		// TODO: 处理异常的堆栈平衡吗？
-		e.what();
-		MessageBox(NULL, TEXT("加壳流程出现错误"), NULL, 0);
+		std::cerr << e.what() << std::endl;
+		//MessageBox(NULL, TEXT("加壳流程出现错误"), NULL, 0);
 		return ERR_UNKNOWN;
 	}
 
@@ -240,12 +230,12 @@ int IsPEFile(TCHAR *szFilePath)
 											// pOptHeader->AddressOfEntryPoint;
 
 											//得到第一个区块的起始地址  
-	pSecHeader = IMAGE_FIRST_SECTION(pNtHeader);
-	pSecHeader++;//得到第二个区块的起始地址
-				 // 如果 程序入口点地址 比 第二个区块起始地址 大
-	if ((pOptHeader->AddressOfEntryPoint) > (pSecHeader->VirtualAddress)) {
-		return ERR_INVALIDFILE;
-	}
+	//pSecHeader = IMAGE_FIRST_SECTION(pNtHeader);
+	//pSecHeader++;//得到第二个区块的起始地址
+	//			 // 如果 程序入口点地址 比 第二个区块起始地址 大
+	//if ((pOptHeader->AddressOfEntryPoint) > (pSecHeader->VirtualAddress)) {
+	//	return ERR_INVALIDFILE;
+	//}
 
 	if (((pFilHeader->Characteristics) & IMAGE_FILE_DLL) != 0)
 	{
@@ -344,6 +334,11 @@ int ReadFileToHeap(TCHAR *szFilePath, HANDLE *_hfile, void **_pimagebase)
 		index < ntheader.FileHeader.NumberOfSections; 
 		++index, ++psecheader)
 	{
+		if (0 == psecheader->PointerToRawData || 0 == psecheader->SizeOfRawData)
+		{
+			continue;
+		}
+
 		// 定位到SECTION数据起始处
 		SetFilePointer(hFile, psecheader->PointerToRawData, NULL, FILE_BEGIN);
 
@@ -381,8 +376,11 @@ int WriteHeapToFile(HANDLE _hFile, void* _pImageBase)
 	PIMAGE_SECTION_HEADER pSecHeader = (PIMAGE_SECTION_HEADER)getSecHeader(_pImageBase);
 	for (int i = 0; i < pNTHeader->FileHeader.NumberOfSections; i++, pSecHeader++)
 	{
-		SetFilePointer(_hFile, pSecHeader->PointerToRawData, 0, FILE_BEGIN);
-		WriteFile(_hFile, RVAToPtr(_pImageBase, pSecHeader->VirtualAddress), pSecHeader->SizeOfRawData, &BytesRW, NULL);
+		if (pSecHeader->PointerToRawData)
+		{
+			SetFilePointer(_hFile, pSecHeader->PointerToRawData, 0, FILE_BEGIN);
+			WriteFile(_hFile, RVAToPtr(_pImageBase, pSecHeader->VirtualAddress), pSecHeader->SizeOfRawData, &BytesRW, NULL);
+		}
 	}
 
 	return ERR_SUCCESS;
