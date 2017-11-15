@@ -387,33 +387,28 @@ Label_Luanch_Start	LABEL	DWORD
 			mov		dword ptr [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)], eax
 	.endif
 
-	; GetModuleHandle("kernel32.dll")
-	; GetModuleHandle会修改edx
-	push 	edx
-	lea		esi, dword ptr [edx + (LuanchData.szKer32DLLName - Label_Luanch_Start)]
-	push	esi
-	call	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
-	pop		edx
-	
-	; 如果kernel32.dll尚未加载到内存中，则LoadLibrary("kernel32.dll")
-	.if	eax == 0
-		push	edx
-		push	esi
-		call	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
-		pop		edx
-	.endif
-
-	; GetProcAddress(handle("kernel32.dll"), "VirtualFree")	
-	; GetProcAddress会修改edx
-	push 	edx
-	mov		esi, eax
-	lea		ebx, dword ptr [edx + (LuanchData.szVirtualFree - Label_Luanch_Start)]
-	push	ebx
-	push	esi
-	call	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
-	pop 	edx
+	; 获取VirtualFree函数地址
+	push	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
+	lea		eax, dword ptr [edx + (LuanchData.szVirtualFree - Label_Luanch_Start)]
+	push	eax
+	lea		eax, dword ptr [edx + (LuanchData.szKer32DLLName - Label_Luanch_Start)]
+	push	eax
+	call	PROC_Get_ProcAddress
 	mov		dword ptr [edx + (LuanchData.VirtualFreeADDR - Label_Luanch_Start)], eax
 	
+	; 获取VirtualProtect函数地址
+	push	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
+	lea		eax, dword ptr [edx + (LuanchData.szVirtualProct - Label_Luanch_Start)]
+	push	eax
+	lea		eax, dword ptr [edx + (LuanchData.szKer32DLLName - Label_Luanch_Start)]
+	push	eax
+	call	PROC_Get_ProcAddress
+	mov		dword ptr [edx + (LuanchData.VPAddr - Label_Luanch_Start)], eax
+
 	; *  TODO: 解压缩各区块  *
 
 	; *  恢复原输入表  *
@@ -431,6 +426,7 @@ Label_Luanch_Start	LABEL	DWORD
 		call	Proc_InitOrigianlImport
 		add		esp, 5 * TYPE DWORD
 	.ELSE
+		push	DWORD PTR [edx + (LuanchData.VPAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
@@ -438,8 +434,7 @@ Label_Luanch_Start	LABEL	DWORD
 		add		eax, MImp * TYPE LuanchData.Nodes
 		push	DWORD PTR [eax]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
-		call	Proc_UnMutateImpTab
-		add		esp, 5 * TYPE DWORD 
+		call	Proc_UnmutateImpTab
 	.ENDIF
 	
 	; *  修正重定位数据  *
@@ -449,6 +444,7 @@ Label_Luanch_Start	LABEL	DWORD
 	.IF		eax == 0
 		xor		eax, eax
 	.ELSE
+		push	DWORD PTR [edx + (LuanchData.VPAddr - Label_Luanch_Start)]
 		lea		eax, DWORD PTR [edx + (LuanchData.Nodes.MutatedAddr - Label_Luanch_Start)]
 		add		eax, MReloc * TYPE LuanchData.Nodes
 		push	DWORD PTR [eax]
@@ -468,16 +464,66 @@ Label_Luanch_Start	LABEL	DWORD
 	mov		dword ptr [edx + (LABEL_OEP - Label_Luanch_Start)], eax
 _Return_OEP: 
 	popad
-	DB		68h	; encode of push
+	DB		68h	; opcode of push
 LABEL_OEP LABEL BYTE 
 	DD		0
 	ret
 
 Lable_Luanch_Data_Start	LABEL	DWORD
-
 LuanchData	LUANCH_DATA	<>
-
 Lable_Luanch_Data_End	LABEL 	DWORD
+
+MACRO_VP_CHANGE MACRO
+	; 更改对应内存块访问权限
+	mov		OldProt, 0
+	; 保存地址
+	lea		eax, DWORD PTR [edi + edx]
+	mov		ProtAddr, eax	
+
+	push	ebx
+	push	ecx
+	push	edx
+	push	edi
+	push	esi
+
+	lea		eax, OldProt
+	push	eax	
+	push	PAGE_EXECUTE_READWRITE
+	push	4	
+	push	ProtAddr
+	call	dwVPAddr
+
+	pop		esi
+	pop		edi
+	pop		edx
+	pop		ecx
+	pop		ebx
+ENDM
+
+MACRO_VP_RESTORE MACRO
+	; 还原内存页访问权限
+	.IF  OldProt != 0
+		push	ebx
+		push	ecx
+		push	edx
+		push	edi
+		push	esi
+
+		lea		ebx, OldProt
+		push	ebx
+		push	OldProt
+		push	4
+		push	ProtAddr
+		call	dwVPAddr
+
+		pop		esi
+		pop		edi
+		pop		edx
+		pop		ecx
+		pop		ebx
+	.ENDIF
+ENDM
+
 
 ORDINAL_FLAG_DWORD	EQU	80000000h	
 comment /
@@ -487,12 +533,20 @@ comment /
 				_GPAAddr				DWORD
 				_GMHAddr				DWORD
 				_LLAAddr				DWORD
+				dwVPAddr				DWORD
 /
-Proc_UnMutateImpTab	PROC C PRIVATE \
+Proc_UnmutateImpTab	PROC STDCALL PRIVATE \
 	USES ebx ecx edx esi edi \
-	, _RuntimeImageBase:DWORD, _MutateImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
+	, _RuntimeImageBase:DWORD, \
+	_MutateImportRVA:DWORD, \
+	_GPAAddr:DWORD, \
+	_GMHAddr:DWORD, \
+	_LLAAddr:DWORD, \
+	dwVPAddr:DWORD
 	
-	
+	LOCAL	ProtAddr:DWORD
+	LOCAL	OldProt:DWORD
+
 	mov		edx, _RuntimeImageBase
 	mov		esi, _MutateImportRVA
 	mov		edi, (SHELL_MUTATED_IMPTAB_DLLNODE PTR [edx + esi]).FirstThunk
@@ -560,8 +614,12 @@ Proc_UnMutateImpTab	PROC C PRIVATE \
 			pop 	ebx
 			pop 	edx
 			pop 	ecx
+
+			push	eax
+			MACRO_VP_CHANGE
+			pop		eax
 			mov		DWORD PTR [edx + edi], eax
-			
+			MACRO_VP_RESTORE
 			
 			add 	esi, TYPE SHELL_MUTATED_IMPTAB_DLLNODE_APINODE 
 			add 	edi, TYPE DWORD
@@ -573,7 +631,7 @@ Proc_UnMutateImpTab	PROC C PRIVATE \
 	
 	ret 
 	
-Proc_UnMutateImpTab ENDP
+Proc_UnmutateImpTab ENDP
 
 
 comment /
@@ -667,20 +725,25 @@ PROC_TEST_MINFO PROC STDCALL PRIVATE	\
 	ret
 PROC_TEST_MINFO ENDP 
 
+
 comment	/
 *description:	修正变异重定位信息
 *params:		[in]_OriginalImageBase:DWORD
 *				[in]_RuntimeImageBase:DWORD
 *				[in + out]_MutatedRelocTabRVA:DWORD
+*				[in]dwVPAddr:DWORD
 *reurns:		[eax] ERR_CODES
 /
 Proc_UnmutateRelocTab PROC STDCALL PRIVATE \
-	USES ebx edi esi \
+	USES ebx ecx edx edi esi \
 	, _OriginalImageBase:DWORD, \
 	_RuntimeImageBase:DWORD, \
-	_MutatedRelocTabRVA:DWORD \
+	_MutatedRelocTabRVA:DWORD, \
+	dwVPAddr:DWORD
 
 	LOCAL	Distance:DWORD
+	LOCAL	OldProt:DWORD
+	LOCAL	ProtAddr:DWORD
 
 	.IF ([_OriginalImageBase] == 0) \
 		|| ([_RuntimeImageBase] == 0) \
@@ -689,39 +752,80 @@ Proc_UnmutateRelocTab PROC STDCALL PRIVATE \
 		ret
 	.ENDIF 
 	
-	mov		ebx, _RuntimeImageBase
+	mov		edx, _RuntimeImageBase
 	mov		esi, _MutatedRelocTabRVA
 
 	mov		eax, _RuntimeImageBase 	
 	sub		eax, _OriginalImageBase
 	mov		Distance, eax
 	
-	mov		al, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Type_ 
+	mov		al, (SHELL_MUTATED_RELOCTAB PTR [edx + esi]).Type_ 
 	.WHILE	al == IMAGE_REL_BASED_HIGHLOW 
-		mov		edi, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).FirstTypeRVA
+		mov		edi, (SHELL_MUTATED_RELOCTAB PTR [edx + esi]).FirstTypeRVA
 		.BREAK .IF (edi == 0)
 		
+		; 重定位块中第一个地址
+		MACRO_VP_CHANGE
 		mov		eax, Distance
-		add		DWORD PTR [ebx + edi], eax
+		add		DWORD PTR [edx + edi], eax
+		MACRO_VP_RESTORE
 
-		lea		esi, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Offset_
-		sub		esi, ebx 
-		.WHILE	WORD PTR [ebx + esi] != 0
+		; 重定位块中后续地址
+		lea		esi, (SHELL_MUTATED_RELOCTAB PTR [edx + esi]).Offset_
+		sub		esi, edx 
+		.WHILE	WORD PTR [edx + esi] != 0
 			xor		eax, eax
-			mov		ax, WORD PTR [ebx + esi]
-			add		edi, eax 
+			mov		ax, WORD PTR [edx + esi]
+			add		edi, eax
+			MACRO_VP_CHANGE
 			mov		eax, Distance
-			add		DWORD PTR [ebx + edi], eax
+			add		DWORD PTR [edx + edi], eax
+			MACRO_VP_RESTORE
 			add		esi, TYPE SHELL_MUTATED_RELOCTAB.Offset_
 		.ENDW
+	
 		add		esi, TYPE SHELL_MUTATED_RELOCTAB.Offset_
-
-		mov		al, (SHELL_MUTATED_RELOCTAB PTR [ebx + esi]).Type_ 
+		mov		al, (SHELL_MUTATED_RELOCTAB PTR [edx + esi]).Type_ 
 	.ENDW
 
 	mov		eax, ERR_SUCCEEDED
 	ret
 Proc_UnmutateRelocTab ENDP
+
+
+PROC_Get_ProcAddress PROC STDCALL PRIVATE \
+	USES ecx edx \
+	, pszDLLName:DWORD, pszAPIName:DWORD, dwGMHAddr:DWORD, dwLLAddr:DWORD, dwGPAAddr:DWORD
+
+	; GetModuleHandle,Loadlibrary,GetProcAddress都会修改edx
+
+	.IF (pszDLLName == 0) \
+		|| (pszAPIName == 0) \
+		|| (dwGMHAddr == 0) \
+		|| (dwLLAddr == 0) \
+		|| (dwGPAAddr == 0)
+		mov		eax, 0
+		ret
+	.ENDIF
+
+	push	pszDLLName
+	call	dwGMHAddr
+	
+	; 如果DLL还未加载，则加载 
+	.IF	eax == 0
+		push	pszDLLName
+		call	dwLLAddr
+		.IF eax == 0
+			ret
+		.ENDIF
+	.ENDIF
+
+	push	pszAPIName
+	push	eax
+	call	dwGPAAddr
+
+	ret
+PROC_Get_ProcAddress ENDP
 
 Label_Luanch_End	LABEL 	DWORD
 Label_Shell_End	LABEL	DWORD

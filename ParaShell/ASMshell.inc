@@ -85,6 +85,9 @@ LUANCH_DATA STRUCT
 	nLuanchAllocStep    DD	0
 	szVirtualFree		DB	'VirtualFree', 0
 	VirtualFreeADDR		DD	0
+	szVirtualProct		DB	'VirtualProtect', 0
+	ALIGN	TYPE DWORD
+	VPAddr				DD	0
 	szKer32DLLName		DB	'KERNEL32.dll', 0, 0
 	; 已下数据需要从第一段SHELL复制到第二段SHELL
 	; 三个函数次序不可改变
@@ -96,9 +99,9 @@ LUANCH_DATA STRUCT
 	PresentImageBase	DD	0
 LUANCH_DATA ENDS
 
+ERR_INVALIDPARAMS	EQU -2
 ERR_FAILED			EQU -1
 ERR_SUCCEEDED		EQU	0
-ERR_INVALIDPARAMS	EQU 1
 
 comment /
 	FirstThunk|DLLName[32]|nFunc|FuncName[32]...
@@ -139,8 +142,15 @@ comment /
 				_GPAAddr				DWORD
 				_GMHAddr				DWORD
 				_LLAAddr				DWORD
+				dwVPAddr				DWORD
 /
-Proc_UnMutateImpTab	PROTO C , _RuntimeImageBase:DWORD, _MutateImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
+Proc_UnmutateImpTab	PROTO STDCALL \
+	, _RuntimeImageBase:DWORD, \
+	_MutateImportRVA:DWORD, \
+	_GPAAddr:DWORD, \
+	_GMHAddr:DWORD, \
+	_LLAAddr:DWORD, \
+	dwVPAddr:DWORD
 
 comment /
 	Description:	初始化原输入表
@@ -158,13 +168,18 @@ comment	/
 *params:		[in]_OrigianlImageBase:DWORD
 *				[in]_RuntimeImageBase:DWORD
 *				[in + out]_MutatedRelocTabRVA:DWORD
+*				[in]dwVPAddr:DWORD
 *reurns:		[eax] ERR_CODES
 /
 Proc_UnmutateRelocTab PROTO STDCALL\
 	, _OrigianlImageBase:DWORD, \
 	_RuntimeImageBase:DWORD, \
-	_MutatedRelocTabRVA:DWORD \
+	_MutatedRelocTabRVA:DWORD, \
+	dwVPAddr:DWORD
 
 PROC_TEST_MINFO PROTO STDCALL , _MInfo:DWORD, _Type:DWORD	
+
+PROC_Get_ProcAddress PROTO STDCALL \
+	, pszDLLName:DWORD, pszAPIName:DWORD, dwGMHAddr:DWORD, dwLLAddr:DWORD, dwGPAAddr:DWORD
 
 ENDIF  ; __ASMSHELL_INC__

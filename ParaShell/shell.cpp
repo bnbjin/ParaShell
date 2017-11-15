@@ -167,7 +167,7 @@ bool buildImpTab(
 	const PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(pImageBase);	
 
 	/*  使原输入表所在区块可写  */
-	if (!MakeSecWritable(pImageBase,
+	/*if (!MakeSecWritable(pImageBase,
 		pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress))
 	{
 		return false;
@@ -176,7 +176,7 @@ bool buildImpTab(
 		pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT].VirtualAddress))
 	{
 		return false;
-	}
+	}*/
 
 	/* 复制变异输入表数据到外壳区块 */
 	memcpy((char*)((DWORD)pSecShell + Offset), pImpTabData, nImpTabData);
