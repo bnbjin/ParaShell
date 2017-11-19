@@ -42,9 +42,6 @@
     <ClCompile Include="import.cpp">
       <Filter>cpp\src</Filter>
     </ClCompile>
-    <ClCompile Include="packing.cpp">
-      <Filter>cpp\src</Filter>
-    </ClCompile>
     <ClCompile Include="pediy.cpp">
       <Filter>cpp\src</Filter>
     </ClCompile>
@@ -75,6 +72,9 @@
     <ClCompile Include="entry_cui.cpp">
       <Filter>cpp\src</Filter>
     </ClCompile>
+    <ClCompile Include="packer.cpp">
+      <Filter>cpp\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h">
@@ -90,9 +90,6 @@
       <Filter>cpp\inc</Filter>
     </ClInclude>
     <ClInclude Include="import.h">
-      <Filter>cpp\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="packing.h">
       <Filter>cpp\inc</Filter>
     </ClInclude>
     <ClInclude Include="pediy.h">
@@ -123,6 +120,9 @@
       <Filter>cpp\pattern</Filter>
     </ClInclude>
     <ClInclude Include="entry_gui.h">
+      <Filter>cpp\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="packer.h">
       <Filter>cpp\inc</Filter>
     </ClInclude>
   </ItemGroup>

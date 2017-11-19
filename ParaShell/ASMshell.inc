@@ -17,6 +17,10 @@ PUBLIC 	C 	Lable_Luanch_Data_End
 ;PUBLIC	C	TlsTable
 ;PUBLIC	C	RelocBaseBegin
 
+; error types
+ERR_INVALIDPARAMS	EQU -2
+ERR_FAILED			EQU -1
+ERR_SUCCEEDED		EQU	0
 
 MY_IMAGE_IMPORT_DESCRIPTOR STRUCT    
 	UNION Misc
@@ -42,18 +46,45 @@ MY_IMAGE_IMPORT_BY_NAME STRUCT
 	FuncName	DB	32 DUP (?)
 MY_IMAGE_IMPORT_BY_NAME ENDS
 
+; packer type
+PT_Nothing	EQU	0h
+PT_Xor		EQU 1h
+PT_AP		EQU 2h
+
+SHELL_PACK_INFO_NODE STRUCT
+	Type_			DD	0
+	OriginalOffset	DD	0
+	OriginalSize	DD	0
+	PackedOffset	DD	0
+	PackedSize		DD	0
+	AllocatedAddr	DD	0
+SHELL_PACK_INFO_NODE ENDS
 
 INDUCTION_DATA STRUCT
-	nShellStep	 		DD	0	; DLL可能会多次进入shell,通过统计进入步数来判断是EXE还是DLL
-	LuanchBase	 		DD	?	; 需要外壳程序写入	RVA
-	LuanchAllocatedBase	 	DD	?
-	PresentImageBase	DD	?
-	nLuanchOriginalSize	DD	?
-	nLuanchPackSize		DD	?	; 需要外壳程序写入
-	szVirtualAlloc	 	DB	'VirtualAlloc', 0
-	VirtualAllocAddr 	DD	0
-	TlsTable	 		DB	18h DUP (?)	; 暂时未使用到
+	nShellStep	 			DD	0	; DLL可能会多次进入shell,通过统计进入步数来判断是EXE还是DLL
+	PresentImageBase		DD	?
+	;LuanchBase	 			DD	?	; 需要外壳程序写入	RVA
+	;LuanchAllocatedBase	 	DD	?
+	;nLuanchOriginalSize		DD	?
+	;nLuanchPackSize			DD	?	; 需要外壳程序写入
+	LuanchPNode				SHELL_PACK_INFO_NODE <>	; 需要外壳写入
+	szVirtualAlloc	 		DB	'VirtualAlloc', 0
+	VirtualAllocAddr 		DD	0
+	TlsTable	 			DB	18h DUP (?)	; 暂时未使用到
 INDUCTION_DATA ENDS
+
+Proc_Unapck_Data PROTO STDCALL \
+	, ShellVA:DWORD,
+	PackNodeOffset:DWORD, \
+	VirtualAllocAddr:DWORD
+
+Proc_Unpack_Data_Xor PROTO STDCALL \
+	, psrc:DWORD, \
+	srclen:DWORD, \
+	pdst:DWORD, \
+	dstlen:DWORD
+
+Proc_Unpack_Data_AP	PROTO STDCALL
 
 ; MInfo_ImpTabType
 MIITT_NOTHING	EQU	0h	; 无任何操作
@@ -98,10 +129,6 @@ LUANCH_DATA STRUCT
 	aPDepackASMAddr		DD	0
 	PresentImageBase	DD	0
 LUANCH_DATA ENDS
-
-ERR_INVALIDPARAMS	EQU -2
-ERR_FAILED			EQU -1
-ERR_SUCCEEDED		EQU	0
 
 comment /
 	FirstThunk|DLLName[32]|nFunc|FuncName[32]...
@@ -161,7 +188,12 @@ comment /
 					_GMHAddr			DWORD
 					_LLAAddr			DWORD
 /
-Proc_InitOrigianlImport PROTO C , _RuntimeImageBase:DWORD, _OriginalImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
+Proc_InitOrigianlImport PROTO STDCALL \
+	, _RuntimeImageBase:DWORD, \
+	_OriginalImportRVA:DWORD, \
+	_GPAAddr:DWORD, \
+	_GMHAddr:DWORD, \
+	_LLAAddr:DWORD
 
 comment	/
 *description:	修正变异重定位信息

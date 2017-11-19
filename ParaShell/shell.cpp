@@ -131,8 +131,8 @@ bool fixShellData(void* pImageBase, void* pSecShell)
 	const PIMAGE_SECTION_HEADER pLastSecHeader = getLastSecHeader(pImageBase);	
 
 	PInduction_Data pInductionData = (PInduction_Data)((DWORD)(pSecShell) + (DWORD)(&Label_Induction_Data_Start) - (DWORD)(&Label_Shell_Start));
-	pInductionData->LuanchBase = (DWORD)(&Label_Luanch_Start) - (DWORD)(&Label_Shell_Start);
-	pInductionData->nLuanchOriginalSize = (DWORD)(&Label_Luanch_End) - (DWORD)(&Label_Luanch_Start);
+	pInductionData->LuanchPNode.OriginalRVA = (DWORD)(&Label_Luanch_Start) - (DWORD)(&Label_Shell_Start);
+	pInductionData->LuanchPNode.OriginalSize = (DWORD)(&Label_Luanch_End) - (DWORD)(&Label_Luanch_Start);
 
 	PLuanch_Data pLuanchData = (PLuanch_Data)((DWORD)(pSecShell) + (DWORD)(&Lable_Luanch_Data_Start) - (DWORD)(&Label_Shell_Start));
 	pLuanchData->OEP = pNTHeader->OptionalHeader.AddressOfEntryPoint;

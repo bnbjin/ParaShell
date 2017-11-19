@@ -56,7 +56,7 @@ __next0:
 	mov		eax, dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]
 	.if	eax != 0
 		push	ebp
-		jmp		dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)]
+		jmp		dword ptr [ebp + (InductionData.LuanchPNode.AllocatedAddr - Label_Induction_Start)]
 	.endif
 	inc		dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]	
 	
@@ -78,33 +78,34 @@ __next0:
 	mov		dword ptr [ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)],eax
 	
 	; VirtualAlloc(0, nLuanchOriginalSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
-	push	PAGE_EXECUTE_READWRITE
-	push	MEM_COMMIT
-	push	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)]
-	push	0
-	call	dword ptr [ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)]
+	;push	PAGE_EXECUTE_READWRITE
+	;push	MEM_COMMIT
+	;push	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)]
+	;push	0
+	;call	dword ptr [ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)]
 	
 	; 将外壳第二段地址放到LuanchAllocatedBase，DLL退出时会用到
-	push	eax ; 对应下面的pop edx
-	mov		dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)], eax
+	;mov		dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)], eax
 	
 	; *  解压缩第二段外壳代码  *
+	;push 	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)] 
+	;push	dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)]
+	;push 	dword ptr [ebp + (InductionData.nLuanchPackSize - Label_Induction_Start)]
+	;mov		ebx, dword ptr [ebp + (InductionData.LuanchBase - Label_Induction_Start)]
+	;add		ebx, ebp
+	;push	ebx
+	;call	Proc_aP_depack_asm_safe
+	;add		esp, 4 * TYPE DWORD
+	;pop		edx	; 对应上面的push eax
 	
-	; Proc_aP_depack_asm_safe(
-	;			InductionBase + ebp, 
-	;			InductionData.nLuanchPackSize
-	;			前面分配的内存空间, 
-	;			InductionData.nLuanchOriginalSize);
-	push 	dword ptr [ebp + (InductionData.nLuanchOriginalSize - Label_Induction_Start)] 
-	push	dword ptr [ebp + (InductionData.LuanchAllocatedBase - Label_Induction_Start)]
-	push 	dword ptr [ebp + (InductionData.nLuanchPackSize - Label_Induction_Start)]
-	mov		ebx, dword ptr [ebp + (InductionData.LuanchBase - Label_Induction_Start)]
-	add		ebx, ebp
-	push	ebx
-	call	Proc_aP_depack_asm_safe
-	add		esp, 4 * TYPE DWORD
-	
-	pop		edx	; 对应上面的push eax
+	push	[ebp + (InductionData.VirtualAllocAddr - Label_Induction_Start)]
+	lea		eax, [ebp + (InductionData.LuanchPNode - Label_Induction_Start)]
+	sub		eax, ebp
+	push	eax
+	push	ebp
+	call	Proc_Unpack_Data
+
+	mov		edx, [ebp + (InductionData.LuanchPNode.AllocatedAddr - Label_Induction_Start)]
 	; 复制三个初始函数的地址到第二段外壳的数据表中
 	mov		ecx, 3h
 	lea		esi, [ebp + (GPAAddr - Label_Induction_Start)]
@@ -132,11 +133,93 @@ MoveThreeFuncAddr:
 	push	ebp
 	jmp		edx
 
+Proc_Unpack_Data PROC STDCALL PRIVATE \
+	USES ebx ecx edx esi edi \
+	, ShellVA:DWORD,
+	PackNodeOffset:DWORD, \
+	VirtualAllocAddr:DWORD
+
+	.IF (ShellVA == 0) || (PackNodeOffset == 0) || (VirtualAllocAddr == 0)
+		mov		eax, ERR_INVALIDPARAMS
+		ret
+	.ENDIF 
+
+	push	PAGE_EXECUTE_READWRITE
+	push	MEM_COMMIT
+	mov		esi, ShellVA
+	add		esi, PackNodeOffset		
+	push	(SHELL_PACK_INFO_NODE PTR [esi]).OriginalSize
+	push	0
+	call	VirtualAllocAddr
+
+	mov		esi, ShellVA
+	add		esi, PackNodeOffset		
+	.IF		eax != 0
+		mov		(SHELL_PACK_INFO_NODE PTR [esi]).AllocatedAddr, eax
+	.ELSE
+		xor		eax, eax
+		mov		(SHELL_PACK_INFO_NODE PTR [esi]).AllocatedAddr, eax
+		mov		eax, ERR_FAILED
+		ret
+	.ENDIF
+
+	mov		eax, (SHELL_PACK_INFO_NODE PTR [esi]).Type_
+	.IF eax == PT_Xor
+		push	(SHELL_PACK_INFO_NODE PTR [esi]).OriginalSize
+		push	(SHELL_PACK_INFO_NODE PTR [esi]).AllocatedAddr
+		push	(SHELL_PACK_INFO_NODE PTR [esi]).PackedSize
+		mov		eax, (SHELL_PACK_INFO_NODE PTR [esi]).PackedOffset
+		add		eax, ShellVA
+		push	eax
+		call	Proc_Unpack_Data_Xor
+	.ELSEIF eax == PT_AP	
+		call	Proc_Unpack_Data_AP
+	.ELSE
+		mov		eax, ERR_INVALIDPARAMS
+	.ENDIF
+	
+	ret
+Proc_Unpack_Data ENDP
+
+Proc_Unpack_Data_Xor PROC STDCALL PRIVATE \
+	USES ebx esi edi \
+	, psrc:DWORD, \
+	srclen:DWORD, \
+	pdst:DWORD, \
+	dstlen:DWORD
+
+	.IF (psrc == 0) || (srclen == 0) || (pdst == 0) || (dstlen == 0)
+		mov		eax, ERR_INVALIDPARAMS
+		ret
+	.ENDIF 
+
+	mov		eax, psrc
+	mov		ah, byte ptr [eax]
+	mov		ebx, 1 * TYPE BYTE
+	mov		esi, psrc
+	mov		edi, pdst
+
+	.WHILE ebx < srclen
+		mov		al, byte ptr [esi + ebx]
+		xor		al, ah
+		mov		byte ptr [edi + ebx - 1], al
+		inc		ebx
+	.ENDW
+
+	mov		eax, ERR_SUCCEEDED
+	ret
+Proc_Unpack_Data_Xor ENDP
+
+Proc_Unpack_Data_AP	PROC STDCALL PRIVATE
+	mov		eax, ERR_SUCCEEDED
+	ret
+Proc_Unpack_Data_AP ENDP
+
 Label__aP_depack_asm_safe_Start LABEL DWORD
 
-; C calling convention
 getbitM MACRO
 LOCAL stillbitsleft
+
     add    dl, dl
     jnz    stillbitsleft
 
@@ -145,7 +228,6 @@ LOCAL stillbitsleft
 
     mov    dl, [esi]
     inc    esi
-
     add    dl, dl
     inc    dl
 stillbitsleft:
@@ -324,7 +406,7 @@ shortmatch:
 
     xor    ecx, ecx
     db     0c0h, 0e8h, 001h
-    jz     donedepacking
+    jz     donedepacker
 
     adc    ecx, 2
 
@@ -345,7 +427,7 @@ return_error:
 
     ret
 
-donedepacking:
+donedepacker:
     add    esp, 8
 
     sub    edi, [esp + 40]
@@ -424,7 +506,6 @@ Label_Luanch_Start	LABEL	DWORD
 		push	DWORD PTR [eax]
 		push	DWORD PTR [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 		call	Proc_InitOrigianlImport
-		add		esp, 5 * TYPE DWORD
 	.ELSE
 		push	DWORD PTR [edx + (LuanchData.VPAddr - Label_Luanch_Start)]
 		push	DWORD PTR [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
@@ -636,14 +717,13 @@ Proc_UnmutateImpTab ENDP
 
 comment /
 	Description:	初始化原输入表
-					C convention
 	Parameters:		_RuntimeImageBase	DWORD
 					_OriginalImportRVA	DWORD	RVA to ImageBase
 					_GPAAddr			DWORD	
 					_GMHAddr			DWORD
 					_LLAAddr			DWORD
 /
-Proc_InitOrigianlImport PROC C PRIVATE \
+Proc_InitOrigianlImport PROC STDCALL PRIVATE \
 	USES ebx ecx edx esi edi \
 	, _RuntimeImageBase:DWORD, _OriginalImportRVA:DWORD, _GPAAddr:DWORD, _GMHAddr:DWORD, _LLAAddr:DWORD
 	

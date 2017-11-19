@@ -9,7 +9,7 @@
 #include "import.h"
 #include "section.h"
 #include "extradata.h"
-#include "packing.h"
+#include "packer.h"
 #include "shell.h"
 
 
@@ -114,8 +114,7 @@ int ProtTheFile(TCHAR *szFilePath)
 
 
 		/*  压缩区块数据  */
-		PackFile(pImageBase);
-	
+		packer(pt_xor).pack_shell(pImageBase);
 
 		/*  把堆中数据写入文件  */
 		// TODO : mergememblock

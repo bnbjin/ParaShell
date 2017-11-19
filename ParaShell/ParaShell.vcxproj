@@ -164,7 +164,7 @@
     <ClInclude Include="extradata.h" />
     <ClInclude Include="globalvalue.h" />
     <ClInclude Include="import.h" />
-    <ClInclude Include="packing.h" />
+    <ClInclude Include="packer.h" />
     <ClInclude Include="pediy.h" />
     <ClInclude Include="pe_utilities.h" />
     <ClInclude Include="relocation.h" />
@@ -212,7 +212,7 @@
     <ClCompile Include="extradata.cpp" />
     <ClCompile Include="gloabalvalue.cpp" />
     <ClCompile Include="import.cpp" />
-    <ClCompile Include="packing.cpp" />
+    <ClCompile Include="packer.cpp" />
     <ClCompile Include="pediy.cpp" />
     <ClCompile Include="pe_utilities.cpp" />
     <ClCompile Include="relocation.cpp" />

@@ -26,14 +26,25 @@ struct Induction_Import
 	IMAGE_THUNK_DATA Thunk[4];
 };
 
+struct Shell_Pack_Info_Node
+{
+	DWORD	Type;
+	DWORD	OriginalRVA;
+	DWORD	OriginalSize;
+	DWORD	PackedRVA;
+	DWORD	PackedSize;
+	DWORD	TempMemBlock;
+};
+
 struct Induction_Data 
 {
 	DWORD	nShellStep;
-	DWORD	LuanchBase;			// RVA
-	DWORD   LuanchAllocatedBase;
+	//DWORD	LuanchBase;
+	//DWORD   LuanchAllocatedBase;
 	DWORD   ImageBase;
-	DWORD	nLuanchOriginalSize;
-	DWORD   nLuanchPackSize;
+	//DWORD	nLuanchOriginalSize;
+	//DWORD   nLuanchPackSize;
+	Shell_Pack_Info_Node LuanchPNode;
 	BYTE	szVirtualAlloc[13];
 	DWORD	VirtualAllocAddr;
 	BYTE	TlsTable[18];
