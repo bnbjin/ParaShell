@@ -10,7 +10,6 @@ int wmain(int argc, TCHAR* argv[])
 		return -1;
 	}
 
-	
 #ifdef _DEBUG
 	TCHAR path[MAX_PATH];
 	TCHAR path_bak[MAX_PATH];

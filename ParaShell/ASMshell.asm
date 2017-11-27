@@ -46,7 +46,7 @@ Label_Induction_Data_Start	LABEL	DWORD
 	InductionData INDUCTION_DATA <>
 Label_Induction_Data_End	LABEL	DWORD
 
-__next0:	
+__next0:
 	; 获取程序入口点 ebp = 入口点地址, 为后面提供寻址作用
 	pop 	ebp
 	sub		ebp, (Label_Induction_Import_Start - Label_Induction_Start)
@@ -133,9 +133,268 @@ MoveThreeFuncAddr:
 	push	ebp
 	jmp		edx
 
+Macro_IsDebuggerPresent MACRO
+	ASSUME FS:NOTHING
+	mov		eax, DWORD PTR fs:[30h]
+	movzx	eax, BYTE PTR [eax + 2]
+ENDM
+
+FLG_HEAP_ENABLE_FREE_CHECK EQU 20h
+FLG_HEAP_ENABLE_TAIL_CHECK EQU 10h
+FLG_HEAP_VALIDATE_PARAMETERS EQU 40h
+Macro_Check_NtGlobalFlag MACRO
+	ASSUME FS:NOTHING
+	push	ebx
+	xor		eax, eax
+	or		eax, FLG_HEAP_ENABLE_FREE_CHECK
+	or		eax, FLG_HEAP_ENABLE_TAIL_CHECK
+	or		eax, FLG_HEAP_VALIDATE_PARAMETERS
+	mov		ebx, DWORD PTR fs:[30h]
+	and		eax, DWORD PTR [ebx + 68h]
+	pop		ebx
+ENDM
+
+MAGICHEAP_SIG EQU 0FEEEFEEEh ; 
+comment /
+HeapAlloc:		NothingString
+ProcessHeap:	0FFEEFFEEh
+new:			0CDCDCDCDh
+delete:			0DDDDDDDDh
+
+PS: seems not working on windows10
+/
+Macro_Check_MagicHeapSig MACRO
+	ASSUME FS:NOTHING
+	push	ebx
+	push	ecx
+	push	esi
+	xor		eax, eax
+	mov		esi, DWORD PTR fs:[30h]
+	mov		esi, DWORD PTR [esi + 18h]
+	mov		ecx, 400h
+	
+	.WHILE ebx < ecx
+		cmp		DWORD PTR [esi + ecx], MAGICHEAP_SIG
+		.IF (ZERO?)
+			mov		eax, 1
+			.BREAK
+		.ENDIF
+		add		ebx, TYPE DWORD
+	.ENDW
+
+	pop		esi
+	pop		ecx
+	pop		ebx
+ENDM
+
+Label_Proc_GetProcAddr LABEL DWORD
+Proc_GetProcAddr PROC STDCALL PRIVATE \
+	USES ebx ecx edx esi edi \
+	, __GMHAddr:DWORD, \
+	__LLAddr:DWORD, \
+	__GPAAddr:DWORD, \
+	__szDLLName:DWORD, \
+	__szProcName:DWORD
+
+	push	__szDLLName
+	call	__GMHAddr
+
+	.IF		eax == 0
+		push	__szDLLName
+		call	__LLAddr
+	.ENDIF
+
+	push	__szProcName
+	push	eax
+	call	__GPAAddr
+
+	ret
+Proc_GetProcAddr ENDP
+
+_ProcessDebugPort	EQU 7h
+Label_Proc_CheckDBGPort LABEL DWORD
+Proc_CheckDBGPort PROC STDCALL PRIVATE \
+	USES ebx ecx edx esi edi \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+
+	LOCAL	Result:DWORD
+	LOCAL	DataAddr:DWORD
+	LOCAL	NtQIPAddr:DWORD
+	
+	call _Proc_CheckDBGPort_Data_Next 
+_Proc_CheckDBGPort_Data_Start	LABEL DWORD
+	_CDBGP_NtdllName	DB	'Ntdll.dll', 0
+	_CDBGP_NtQIPName	DB	'NtQueryInformationProcess', 0
+_Proc_CheckDBGPort_Data_End		LABEL DWORD
+_Proc_CheckDBGPort_Data_Next:
+	pop		eax
+	mov		DataAddr, eax
+
+	mov		eax, _CDBGP_NtQIPName-_Proc_CheckDBGPort_Data_Start
+	add		eax, DataAddr
+	push	eax
+	mov		eax, _CDBGP_NtdllName-_Proc_CheckDBGPort_Data_Start
+	add		eax, DataAddr
+	push	eax	
+	push	_GPAAddr
+	push	_LLAddr
+	push	_GMHAddr
+	call	_PGPAAddr
+	mov		NtQIPAddr, eax
+	
+	push	0
+	push	4
+	lea		eax, Result
+	push	eax
+	push	DWORD PTR _ProcessDebugPort
+	push	DWORD PTR -1 ; current proccess psuedo handle
+	call	NtQIPAddr
+	mov		eax, Result
+
+	ret
+Proc_CheckDBGPort ENDP
+
+_ThreadHideFromDebugger EQU 17
+Label_Proc_HideFromDBGR LABEL DWORD
+Proc_HideFromDBGR PROC STDCALL PRIVATE \
+	USES ebx ecx edx esi edi \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+
+	LOCAL	DataAddr:DWORD
+	LOCAL	ZwSITAddr:DWORD
+
+	call _Proc_HideFromDBGR_Data_Next
+_Proc_HideFromDBGR_Data_Start LABEL DWORD
+	_HFDBGR_NtdllName	DB	'Ntdll.dll', 0
+	_HFDBGR_ZwSIT		DB	'ZwSetInformationThread', 0
+_Proc_HideFromDBGR_Data_End LABEL DWORD
+_Proc_HideFromDBGR_Data_Next:
+	pop		eax
+	mov		DataAddr, eax
+	
+	mov		eax, _HFDBGR_ZwSIT-_Proc_HideFromDBGR_Data_Start
+	add		eax, DataAddr
+	push	eax
+	mov		eax, _HFDBGR_NtdllName-_Proc_HideFromDBGR_Data_Start
+	add		eax, DataAddr
+	push	eax
+	push	_GPAAddr
+	push	_LLAddr
+	push	_GMHAddr
+	call	_PGPAAddr
+	mov		ZwSITAddr, eax
+	
+	push	0
+	push	0
+	push	DWORD PTR _ThreadHideFromDebugger
+	push	DWORD PTR -2 ; current thread psuedo handle
+	call	ZwSITAddr
+
+	ret
+Proc_HideFromDBGR ENDP
+
+_ObjectAllTypesInformation	EQU	3h
+_Status_Info_Length_Mismatch EQU 0C0000004h
+Label_Proc_isDBGObjExist LABEL DWORD
+Proc_isDBGObjExist PROC STDCALL PRIVATE \
+	USES ebx ecx edx esi edi \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+	
+	LOCAL	VAAddr:DWORD
+	LOCAL	VFAddr:DWORD
+	LOCAL	ZwQOAddr:DWORD
+	LOCAL	DataAddr:DWORD
+	LOCAL	RetSize:DWORD
+	LOCAL	BufferAddr:DWORD
+
+	call _Proc_isDBGObjExist_Data_Next
+_Proc_isDBGObjExist_Data_Start LABEL DWORD
+	_IDOE_NtdllName		DB	'Ntdll.dll', 0
+	_IDEO_ZwQO			DB	'ZwQueryObject', 0
+	_IDOE_Ker32Name		DB	'Kernel32.dll', 0
+	_IDOE_VAName		DB	'VirtualAlloc', 0
+	_IDOE_VFName		DB	'VirtualFree', 0
+_Proc_isDBGObjExist_Data_End LABEL DWORD
+_Proc_isDBGObjExist_Data_Next:
+	pop		eax
+	mov		DataAddr, eax
+	
+	mov		eax, _IDEO_ZwQO-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	mov		eax, _IDOE_NtdllName-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	push	_GPAAddr
+	push	_LLAddr
+	push	_GMHAddr
+	call	_PGPAAddr
+	mov		ZwQOAddr, eax
+	
+	mov		eax, _IDOE_VAName-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	mov		eax, _IDOE_Ker32Name-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	push	_GPAAddr
+	push	_LLAddr
+	push	_GMHAddr
+	call	_PGPAAddr
+	mov		VAAddr, eax
+	
+	mov		eax, _IDOE_VFName-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	mov		eax, _IDOE_Ker32Name-_Proc_isDBGObjExist_Data_Start
+	add		eax, DataAddr
+	push	eax
+	push	_GPAAddr
+	push	_LLAddr
+	push	_GMHAddr
+	call	_PGPAAddr
+	mov		VFAddr, eax
+	
+	lea		eax, RetSize
+	push	eax
+	push	SIZE BufferAddr
+	lea		eax, BufferAddr
+	push	eax
+	push	DWORD PTR _ObjectAllTypesInformation
+	push	0
+	call	ZwQOAddr
+
+	int	3	
+	.IF		eax != _Status_Info_Length_Mismatch
+		ret
+	.ENDIF
+
+	push	PAGE_READWRITE
+	push	MEM_COMMIT
+	push	RetSize
+	push	0
+	call	VAAddr
+	mov		BufferAddr, eax
+
+	lea		eax, RetSize
+	push	eax
+	push	RetSize
+	push	BufferAddr
+	push	DWORD PTR _ObjectAllTypesInformation
+	push	0
+	call	ZwQOAddr
+
+	push	MEM_RELEASE
+	push	RetSize
+	push	BufferAddr
+	call	VFAddr
+
+	ret
+Proc_isDBGObjExist ENDP
+
 Proc_Unpack_Data PROC STDCALL PRIVATE \
 	USES ebx ecx edx esi edi \
-	, ShellVA:DWORD,
+	, ShellVA:DWORD, \
 	PackNodeOffset:DWORD, \
 	VirtualAllocAddr:DWORD
 
@@ -452,12 +711,8 @@ Label_Luanch_Start	LABEL	DWORD
 	; ebp = Label_Induction_Start VA
 	pop		ebp
 
-	; 如果是DLL，则跳到OEP
 	mov		eax, dword ptr [ebp + (InductionData.nShellStep - Label_Shell_Start)]
-	mov		ebx, dword ptr [edx + (LuanchData.IsDll - Label_Luanch_Start)]
-	.if		(eax > 1) && (ebx != 0)
-			;dll退出时从这里进入OEP	
-			; TODO 修改跳转位置，支持再次反调试
+	.if		eax > 1
 	        jmp _Return_OEP
 	.endif
 	
@@ -534,16 +789,44 @@ Label_Luanch_Start	LABEL	DWORD
 		call	Proc_UnmutateRelocTab
 	.ENDIF
 	
-	; *  anti  dump  *
-	
-	
 	; *  开始跳转到OEP  *
-	; TODO: DLL情况未知
 	inc 	dword ptr [ebp + (InductionData.nShellStep - Label_Induction_Start)]
 	mov		eax, dword ptr [edx + (LuanchData.OEP - Label_Luanch_Start)]
 	add		eax, dword ptr [edx + (LuanchData.PresentImageBase - Label_Luanch_Start)]
 	mov		dword ptr [edx + (LABEL_OEP - Label_Luanch_Start)], eax
 _Return_OEP: 
+	; * anti debug methods *
+	;.IF eax != 0
+	;	mov		eax, ebp
+	;	add		eax, (Label_Induction_Data_End - Label_Shell_Start)
+	;	add		ebp, (Label_Induction_Import_Start - Label_Induction_Start)
+	;	push	ebp
+	;	jmp		eax
+	;.ENDIF
+	Macro_IsDebuggerPresent
+	Macro_Check_NtGlobalFlag
+	Macro_Check_MagicHeapSig
+	lea		eax, dword ptr [ebp + (Label_Proc_GetProcAddr - Label_Induction_Start)]
+	push	eax
+	push	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
+	lea		eax, dword ptr [ebp + (Label_Proc_CheckDBGPort - Label_Induction_Start)]
+	call	eax
+	lea		eax, dword ptr [ebp + (Label_Proc_GetProcAddr - Label_Induction_Start)]
+	push	eax
+	push	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
+	lea		eax, dword ptr [ebp + (Label_Proc_isDBGObjExist - Label_Induction_Start)]
+	call	eax
+	lea		eax, dword ptr [ebp + (Label_Proc_GetProcAddr - Label_Induction_Start)]
+	push	eax
+	push	dword ptr [edx + (LuanchData.GPAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.LLAAddr - Label_Luanch_Start)]
+	push	dword ptr [edx + (LuanchData.GMHAddr - Label_Luanch_Start)]
+	lea		eax, dword ptr [ebp + (Label_Proc_HideFromDBGR - Label_Induction_Start)]
+	call	eax
 	popad
 	DB		68h	; opcode of push
 LABEL_OEP LABEL BYTE 

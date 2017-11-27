@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <vector>
 #include <Windows.h>
@@ -204,7 +205,7 @@ bool packer::pack_shell(void* pImageBase)
 	m_method->set_traits(&traits);
 #ifdef _DEBUG
 	std::cout << "packing type: " << m_method->get_type() << std::endl;
-	std::cout << "packing trait: " << std::hex << traits.key << std::endl;
+	printf("packing trait: 0x%0.2x\n", traits.key);
 #endif 
 
 	/*  Ñ¹ËõµÚ¶þ¶Îshell(Luanch)  */

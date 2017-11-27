@@ -73,8 +73,61 @@ INDUCTION_DATA STRUCT
 	TlsTable	 			DB	18h DUP (?)	; 暂时未使用到
 INDUCTION_DATA ENDS
 
+Proc_GetProcAddr PROTO STDCALL \
+	, __GMHAddr:DWORD, \
+	__LLAddr:DWORD, \
+	__GPAAddr:DWORD, \
+	__szDLLName:DWORD, \
+	__szProcName:DWORD
+
+Proc_CheckDBGPort PROTO STDCALL \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+
+Proc_HideFromDBGR PROTO STDCALL \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+
+_GENERIC_MAPPING STRUCT
+	GenericRead		DD	?
+	GenericWrite	DD	?
+	GenericExec		DD	?
+	GenericAll		DD	?
+_GENERIC_MAPPING ENDS
+
+_UNICODE_STRING	STRUCT
+	Length		DB	?
+	MaxLen		DB	?
+	Buffer		DD	?
+_UNICODE_STRING ENDS
+
+_OBJECT_TYPE_INFORMATION STRUCT
+	TypeName					_UNICODE_STRING	<>
+	TotalNumberOfHandles		DD	?
+	TotalNumberOfObjects		DD	?
+	Unused1						DD	8 DUP (?)
+	HighWaterNumberOfHandles	DD	?
+	HighWaterNumberOfObjects	DD	?
+	Unused2						DW	8 DUP (?)
+	InvalidAttributes			DD	?
+	GenericMapping				_GENERIC_MAPPING <>
+	ValidAttributes				DD	?
+	SecurityRequired			DB	?
+	MaintainHandleCount			DB	?
+	MaintainTypeList			DB	?
+	PoolType					DD	?
+	DefaultPagedPoolCharge		DD	?
+	DefaultNonPagedPoolCharge	DD	?
+_OBJECT_TYPE_INFORMATION ENDS
+
+_Object_All_Types_Info STRUCT
+	NumberOfTypes	DD	?
+	TypeInfoArray	DD	?
+_Object_All_Types_Info ENDS
+
+Proc_isDBGObjExist PROTO STDCALL \
+	, _GMHAddr:DWORD, _LLAddr:DWORD, _GPAAddr:DWORD, _PGPAAddr:DWORD
+
 Proc_Unapck_Data PROTO STDCALL \
-	, ShellVA:DWORD,
+	, ShellVA:DWORD, \
 	PackNodeOffset:DWORD, \
 	VirtualAllocAddr:DWORD
 
